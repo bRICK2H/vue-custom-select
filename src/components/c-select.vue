@@ -1,10 +1,11 @@
 <template>
 	<div class="select-container">
-		<span class="option-select select-container__option-select"
+		<div class="option-select select-container__option-select"
 			@click.stop="toggleSelect"
 		>
 			{{ currName }}
-		</span>
+			<span class="option-select__icon" :style="{ backgroundImage: `url(${iconDown})` }"></span>
+		</div>
 		<transition name="list">
 			<ul class="options-box select-container__options-box"
 				v-show="isOpenSelect"
@@ -61,6 +62,7 @@ export default {
 		isOpenSelect: false,
 		currValue: null,
 		currName: 'Select',
+		iconDown: require('@/assets/icons/down.svg')
 	}),
 	methods: {
 		toggleSelect() {
@@ -105,12 +107,16 @@ export default {
 		justify-content: center;
 		align-items: center;
 
-		&::after {
-			content: url('/static/icons/down.svg');
+		&__icon {
+			width: 2rem;
+			height: 2rem;
+			background-repeat: no-repeat;
+			background-position: 50% 50%;
+			background-size: cover;
 			position: absolute;
 			top: 50%;
 			right: 1rem;
-			transform: translateY(-40%);
+			transform: translateY(-50%);
 		}
 	}
 	.options-box {
