@@ -39,7 +39,6 @@
 <script>
 export default {
 	name: 'cSelect',
-	prop: ['selected'],
 	props: {
 		classes: {
 			type: Array,
