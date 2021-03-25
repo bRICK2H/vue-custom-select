@@ -1,7 +1,7 @@
 <template>
 	<div id="app">
 		<div class="model">
-			v-model: {{ selected }}
+			selected: {{ selected }}
 		</div>
 		<c-select
 			:classes="['option--txt-center', 'option--pd']"
@@ -14,13 +14,8 @@
 </template>
 
 <script>
-import cSelect from '@/components/c-select'
-
 export default {
 	name: 'App',
-	components: {
-		cSelect
-	},
 	data: () => ({
 		options: [
 			{ name: 'Шереметьево', value: 'SVO' },

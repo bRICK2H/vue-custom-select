@@ -10,8 +10,7 @@
 			<ul class="options-box select-container__options-box"
 				v-show="isOpenSelect"
 			>
-				<li class="option"
-					:class="[...classes]"
+				<li class="option" :class="[...classes]"
 					v-for="option of options"
 					:key="option.value"
 				>
@@ -26,7 +25,7 @@
 						class="option__input"
 						type="radio"
 						:name="label"
-						:value="option.value"
+						:value="reduce(option)"
 						@input="$emit('input', $event.target.value)"
 					>
 
