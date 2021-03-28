@@ -3,13 +3,24 @@
 		<div class="model">
 			selected: {{ selected }}
 		</div>
-		<c-select
-			:classes="['option--txt-center', 'option--pd']"
-			label="name"
-			:options="options"
-			:reduce="option => option.value"
-			v-model="selected"
-		/>
+		<div class="area-visibility">
+			
+			<c-select
+				:classes="['option--txt-center', 'option--pd']"
+				label="name"
+				:options="options"
+				:reduce="option => option.value"
+				v-model="selected"
+			/>
+			<c-select
+				:classes="['option--txt-center', 'option--pd']"
+				label="name"
+				:options="options"
+				:reduce="option => option.value"
+				v-model="selected"
+			/>
+
+		</div>
 	</div>
 </template>
 
@@ -49,5 +60,11 @@ export default {
 	}
 	.option--pd {
 		padding: 1rem 0;
+	}
+	.area-visibility {
+		height: 100px;
+		overflow: scroll;
+		padding: 30px;
+		border: 1px solid red;
 	}
 </style>

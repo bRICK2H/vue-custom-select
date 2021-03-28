@@ -1,13 +1,19 @@
 <template>
 	<div class="select-container">
-		<div class="option-select select-container__option-select"
+		<div class="selected select-container__selected"
+			ref="selected"
 			@click.stop="toggleSelect"
 		>
 			{{ currName }}
-			<span class="option-select__icon" :style="{ backgroundImage: `url(${iconDown})` }"></span>
+			<span class="selected__wrap-icon">
+				<c-svg-arrow-down
+					:isToggle="isOpenSelect"
+				/>
+			</span>
 		</div>
-		<transition name="list">
-			<ul class="options-box select-container__options-box"
+		<!-- <transition name="dropdown-list"> -->
+			<ul class="dropdown-list select-container__dropdown-list"
+				:style="setStylesToDropDownList"
 				v-show="isOpenSelect"
 			>
 				<li class="option" :class="[...classes]"
@@ -31,13 +37,16 @@
 
 				</li>
 			</ul>
-		</transition>
+		<!-- </transition> -->
 	</div>
 </template>
 
 <script>
+import CSvgArrowDown from './components/svg/c-svg-arrow-down' 
+
 export default {
 	name: 'cSelect',
+	components: { CSvgArrowDown },
 	props: {
 		classes: {
 			type: Array,
@@ -45,7 +54,7 @@ export default {
 		},
 		label: {
 			type: String,
-			default: () => ''
+			default: ''
 		},
 		options: {
 			type: Array,
@@ -57,11 +66,23 @@ export default {
 		}
 	},
 	data: () => ({
+		coordsSelected: {},
+		timeoutId: null,
+		
 		isOpenSelect: false,
 		currValue: null,
 		currName: 'Select',
 		iconDown: require('@/assets/icons/down.svg')
 	}),
+	computed: {
+		setStylesToDropDownList() {
+			return {
+				width: `${this.coordsSelected.width}px`,
+				top: `${this.coordsSelected.y + (this.coordsSelected.height)}px`,
+				left: `${this.coordsSelected.x}px`,
+			}
+		}
+	},
 	methods: {
 		toggleSelect() {
 			this.isOpenSelect = !this.isOpenSelect;
@@ -75,49 +96,58 @@ export default {
 		window.addEventListener('click', () => {
 			this.isOpenSelect = false;
 		});
+	},
+	mounted() {
+		const setCoordsSelected = () => {
+			clearTimeout(this.timeoutId)
+			this.timeoutId = setTimeout(() => {
+				this.coordsSelected = this.$refs['selected'].getBoundingClientRect()
+				console.log(this.coordsSelected)
+			}, 300)
+		}
+
+		setCoordsSelected()
+		window.addEventListener('resize', setCoordsSelected)
 	}
 }
 </script>
 
 <style lang="scss">
 	.select-container {
-		width: 30rem;
-		height: 5rem;
+		width: 300px;
+		height: 50px;
 		position: relative;
 
-		&__option-select {
+		&__selected {
 			position: absolute;
 			top: 0;
 			left: 0;
+			z-index: 99;
 		}
-		&__options-box {
-			position: absolute;
-			top: calc(100% + .2rem);
-			left: 0;
+		&__dropdown-list {
+			position: fixed;
+			z-index: 100;
 		}
 	}
-	.option-select {
+	.selected {
 		width: 100%;
 		height: 100%;
 		background: #fff;
+		border: 1px solid rgba(60,60,60,.26);
+		border-radius: 4px;
 		color: #000;
 		display: flex;
 		justify-content: center;
 		align-items: center;
 
-		&__icon {
-			width: 2rem;
-			height: 2rem;
-			background-repeat: no-repeat;
-			background-position: 50% 50%;
-			background-size: cover;
+		&__wrap-icon {
 			position: absolute;
 			top: 50%;
-			right: 1rem;
+			right: 10px;
 			transform: translateY(-50%);
 		}
 	}
-	.options-box {
+	.dropdown-list {
 		width: 100%;
 		background-color: #fff;
 		color: #000;
@@ -126,7 +156,7 @@ export default {
 	}
 	.option {
 		text-align: left;
-		padding: .5rem 0;
+		padding: 5px 0;
 		position: relative;
 
 		&__label {
