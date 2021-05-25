@@ -3,44 +3,52 @@
 		<div class="model">
 			selected: {{ selected }}
 		</div>
-		<div class="area-visibility">
+		<!-- <div class="area-visibility"> -->
 			
-			<c-select
+			<!-- <c-select
 				:classes="['option--txt-center', 'option--pd']"
 				label="name"
 				:options="options"
 				:reduce="option => option.value"
 				v-model="selected"
-			/>
+			/> -->
 			<c-select
-				:classes="['option--txt-center', 'option--pd']"
+				title="Выберите опцию"
 				label="name"
+				:width="500"
 				:options="options"
-				:reduce="option => option.value"
+				:multiple="true"
+				:reduce="o => ({ name: o.name, price: o.price })"
+				:classes="['option--txt-center', 'option--pd']"
 				v-model="selected"
 			/>
 
-		</div>
+		<!-- </div> -->
 	</div>
 </template>
 
 <script>
+import CSelect from './plugin/c-select/src/main'
+
 export default {
 	name: 'App',
+	components: {
+		CSelect
+	},
 	data: () => ({
 		options: [
-			{ name: 'Шереметьево', value: 'SVO' },
-			{ name: 'Внуково', value: 'VKO' },
-			{ name: 'Домодедово', value: 'DME' },
-			{ name: 'Жуковский', value: 'ZIA' },
+			{ name: 'Маникюр-хороший', price: 490 },
+			{ name: 'Педикюр', price: 300 },
+			{ name: 'Мужская косметология', price: 99 },
+			{ name: 'Стикс-обертывания для тела', price: 33 },
 		],
-		selected: ''
+		selected: []
 	}),
 }
 </script>
 
 <style lang="scss">
-	@import '@/assets/scss/main';
+	// @import '@/assets/scss/main';
 
 	#app {
 		width: inherit;
@@ -52,14 +60,14 @@ export default {
 	}
 
 	.model {
-		font-size: 2rem;
+		font-size: 14px;
 		margin: 3rem;
 	}
 	.option--txt-center {
 		text-align: center;
 	}
 	.option--pd {
-		padding: 1rem 0;
+		// padding: 1rem 0;
 	}
 	.area-visibility {
 		height: 100px;
