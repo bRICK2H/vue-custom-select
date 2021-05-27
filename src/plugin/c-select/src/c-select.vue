@@ -112,7 +112,7 @@ export default {
 	props: {
 		title: {
 			type: String,
-			default: ''
+			default: 'Выберите опцию'
 		},
 		s_label: {
 			type: null,
@@ -156,8 +156,7 @@ export default {
 		isLoadWithChangedValue: false,
 		isOpenSelect: false,
 		selected: [],
-		cloneOptions: [],
-		iconDown: require('@/assets/icons/down.svg')
+		cloneOptions: []
 	}),
 	computed: {
 		setStylesToDropDownList() {
@@ -315,7 +314,7 @@ export default {
 }
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500&display=swap');
 	* {
 		margin: 0;
@@ -326,8 +325,6 @@ export default {
 
 	.select-container {
 		user-select: none;
-		// width: 300px;
-		// height: 50px;
 		min-height: 44px;
 		position: relative;
 
@@ -338,7 +335,6 @@ export default {
 			z-index: 100;
 		}
 		&__dropdown-list {
-			// position: absolute;
 			background-color: #fff;
 			position: fixed;
 			z-index: 99;
@@ -346,7 +342,6 @@ export default {
 	}
 	.selected {
 		width: 100%;
-		// height: 100%;
 		min-height: 44px;
 		background: #fff;
 		border: 2px solid #EEEDF7;
