@@ -3,102 +3,132 @@
 		:style="setStyleToSelect"
 		@click.stop=""
 	>
+
+		<!-- Select -->
 		<div class="selected select-container__selected"
+			:class="{ 'selected--only': !multiple || (!selected.length && !cloneOptions.length)}"
 			ref="selected"
+			@click="(!multiple && cloneOptions.length) || (!selected.length && !cloneOptions.length) ? toggleSelect() : false"
 		>
-			<div v-if="typeof getSelectedElements === 'string'"
+			<div v-if="!selected.length"
 				class="select-title selected__select-title"
+				key="title"
 			>
-				{{ getSelectedElements }}
+				* {{ title }}
 				
 			</div>
-			<div v-else
-				class="select-name selected__select-name"
-				v-for="(element, i) of getSelectedElements"
-				:key="`sl${i}`"
-			>
-				<div class="select-box-name select-name__select-box-name">
-					<template v-if="typeof element === 'object'">
-						<span class="select-box-name__item"
-							v-for="(item, key) in element"
-							:key="key"
-						>
-							{{ item }}
-						</span>
-					</template>
-					<span v-else class="select-box-name__item">
-						{{ element }}
+			<template v-else>
+				<div class="select-name selected__select-name"
+					:class="{'select-name--multiple': multiple}"
+					v-for="(element, i) of selected"
+					:key="`sl${i}`"
+				>
+					<span class="select-box-name select-name__select-box-name"
+						:class="{
+							'select-box-name--pale': !multiple && isOpenSelect,
+							'select-box-name--mr': multiple && (!clearable && selected.length !== 1 || clearable)
+						}"
+					>
+						{{ innerReduce(element, s_label) }}
 					</span>
+					<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
+						class="select-name__close"
+						@click.native="drop(i)"
+					/>
 				</div>
-				<i-close class="select-name__close"
-					@click.native="drop(i)"
-				/>
-			</div>
+			</template>
 
-			<i-add class="multiple-add"
-				v-if="multiple"
-				:class="[
-					{ 'multiple-add--hover': cloneOptions.length },
-					{ 'multiple-add--disabled': !cloneOptions.length }
-				]"
-				@click.native="cloneOptions.length ? isOpenSelect = true : false"
-			/>
-			<span class="selected__wrap-icon"
-				v-else
-			>
-				<c-svg-arrow-down
-					:isToggle="isOpenSelect"
+			<template v-if="multiple">
+				<i-add v-if="cloneOptions.length"
+					class="multiple-add"
+					:class="[
+						{ 'multiple-add--hover': cloneOptions.length },
+					]"
+					@click.native="cloneOptions.length ? isOpenSelect = true : false"
 				/>
-			</span>
+			</template>
+			<template v-else>
+				<div class="selected__wrap-icons"
+					:class="{'selected__wrap-icons--has-item': selected.length && clearable}"
+				>
+					<template v-if="clearable">
+						<i-close v-if="selected.length"
+							@click.native.stop="drop(0)"
+						/>
+						<i-hor-line v-if="selected.length" />
+					</template>
+					<i-arrow-down class="rotate-arraw-down"
+						:class="{'rotate-arraw-down--active': isOpenSelect}"
+					/>
+				</div>
+			</template>
 		</div>
-
-		<!-- <transition name="dropdown-list"> -->
+		
+		<!-- Optiions -->
+		<transition name="dropdown-list">
 			<ul class="dropdown-list select-container__dropdown-list"
 				v-show="isOpenSelect"
 				:style="setStylesToDropDownList"
 			>
-				<!-- :style="{width: `${this.width}px`, top: '44px'}" -->
-				<li class="option" :class="[...classes]"
-					v-for="option of cloneOptions"
-					:key="option[label]"
+				<li v-if="!selected.length && !cloneOptions.length"
+					class="option-empty" :class="[...classes]"
 				>
-
-					<div class="option__name"
-						@click="select(option)"
-					>
-						{{ option[label] }}
-					</div>
-
+					Данные отсутствуют
 				</li>
+
+				<template v-else>
+					<li class="option" :class="[...classes]"
+						v-for="(option, i) of cloneOptions"
+						:key="i"
+					>
+
+						<div class="option__name"
+							@click="select(option)"
+						>
+							{{ innerReduce(option, o_label) }}
+						</div>
+
+					</li>
+				</template>
 			</ul>
-		<!-- </transition> -->
+		</transition>
 	</div>
 </template>
 
 <script>
-import CSvgArrowDown from './components/svg/c-svg-arrow-down' 
 import iClose from './components/svg/close-svg' 
 import iAdd from './components/svg/add-svg' 
+import iArrowDown from './components/svg/arrow-down-svg'
+import iHorLine from './components/svg/hor-line-svg'
 
 export default {
 	name: 'cSelect',
 	components: { 
-		CSvgArrowDown,
+		iAdd,
 		iClose,
-		iAdd
+		iHorLine,
+		iArrowDown
 	},
 	props: {
 		title: {
 			type: String,
 			default: ''
 		},
-		label: {
-			type: String,
-			default: ''
+		s_label: {
+			type: null,
+			default: null
+		},
+		o_label: {
+			type: null,
+			default: null
 		},
 		width: {
 			type: Number,
 			default: 300
+		},
+		value: {
+			type: Array,
+			default: () => ([])
 		},
 		options: {
 			type: Array,
@@ -107,6 +137,10 @@ export default {
 		multiple: {
 			type: Boolean,
 			default: false
+		},
+		clearable: {
+			type: Boolean,
+			default: true
 		},
 		classes: {
 			type: Array,
@@ -118,8 +152,8 @@ export default {
 		}
 	},
 	data: () => ({
-		coordsSelected: {},
-		
+		selectCoords: {},
+		isLoadWithChangedValue: false,
 		isOpenSelect: false,
 		selected: [],
 		cloneOptions: [],
@@ -128,67 +162,155 @@ export default {
 	computed: {
 		setStylesToDropDownList() {
 			return {
-				width: `${this.coordsSelected.width}px`,
-				top: `${this.coordsSelected.y + (this.coordsSelected.height)}px`,
-				left: `${this.coordsSelected.x}px`,
+				width: `${this.selectCoords.width}px`,
+				top: `${this.selectCoords.y + (this.selectCoords.height)}px`,
+				left: `${this.selectCoords.x}px`,
 			}
 		},
 		setStyleToSelect() {
 			return {
 				width: `${this.width}px`,
+				height: `${this.selectCoords.height}px`
 			}
 		},
-		getSelectedElements() {
-			return !this.selected.length
-				? this.title
-				: this.selected.map(curr => this.reduce(curr))
-		}
 	},
 	methods: {
 		select(option) {
-			const selectedIndex = this.cloneOptions.findIndex(curr => curr[this.label] === option[this.label])
 			this.isOpenSelect = false
+			const selectedIndex = this.cloneOptions.findIndex(curr => {
+				return  JSON.stringify(curr) === JSON.stringify(option)
+			})
 
-			this.multiple
-				? this.selected.push(...this.cloneOptions.splice(selectedIndex, 1))
-				: this.selected = [this.cloneOptions[selectedIndex]]
+			if (this.multiple) {
+				this.selected.push(...this.cloneOptions.splice(selectedIndex, 1))
+			} else {
+				if (this.selected.length) {
+					this.cloneOptions.push(...this.selected.splice(0, 1))
+				}
 
-			this.$emit('input', this.selected.map(curr => this.reduce(curr)))
+				this.selected = this.cloneOptions.splice(selectedIndex, 1)
+			}
+
+			this.$emit('input', this.outerReduce(this.selected))
 
 		},
 		drop(i) {
-			this.isOpenSelect = false
 			this.cloneOptions.push(...this.selected.splice(i, 1))
-			this.$emit('input', this.selected)
+			this.$emit('input', this.outerReduce(this.selected))
+		},
+		outerReduce(arr) {
+			return arr.map(c => this.reduce(c) === undefined ? c : this.reduce(c))
+		},
+		innerReduce(el, label) {
+			if (Array.isArray(el)) {
+				return el.flat().join(', ')
+			} else if (typeof el === 'object') {
+				if (label === null) {
+					return Object.values(el).join(', ')
+				} else {
+					if (Array.isArray(label)) {
+						return  label.map(l => el[l]).join(', ')
+					} else if (typeof label === 'function') {
+						if (label(el) === undefined) {
+							console.warn(`[custom_select]: ${label} Не верно введено имя свойства объекта.`)
+							return el
+						} else if (Array.isArray(label(el))) {
+							return label(el).join(', ')
+						} else if (typeof label(el) === 'object') {
+							return Object.values(label(el)).join(', ')
+						} else {
+							return label(el)
+						}
+					} else {
+						return el[label]
+					}
+				}
+			} else {
+				return el
+			}
 		},
 		toggleSelect() {
 			this.isOpenSelect = !this.isOpenSelect;
 		},
-	},
-	created() {
-		this.cloneOptions = this.options
-		window.addEventListener('click', () => {
-			console.log('?')
-			this.isOpenSelect = false;
-		});
+		setSelectCoords() {
+			this.selectCoords = this.$refs['selected'].getBoundingClientRect()
+		}
 	},
 	watch: {
+		value: {
+			immediate: true,
+			handler(value) {
+				if (!this.isLoadWithChangedValue) {
+					if (value.length) {
+	
+						if(this.multiple) {
+							this.selected = value
+							this.cloneOptions = this.options.filter(opt => {
+								return !(value.map(val => JSON.stringify(val)).includes(JSON.stringify(opt)))
+							})
+						} else {
+							if (value.length > 1) {
+								const unique = Array.from(new Set([...value, ...this.options].map(JSON.stringify))).map(JSON.parse)
+								this.selected = value.slice(0, 1)
+								this.cloneOptions = unique.filter(uq => {
+									return value.slice(1).map(val => JSON.stringify(val)).includes(JSON.stringify(uq))
+								})
+								console.warn(`[custom_select]: "v-model/value" должен принимать массив из одного элемента, т.к. свойство multiple="false". В данном случае selected будет равен [0-му элементу] все остальное уйдет в options`)
+							} else {
+								this.selected = value
+								this.cloneOptions = [...value, ...this.options].filter(el => {
+									return !(value.map(val => JSON.stringify(val)).includes(JSON.stringify(el)))
+								})
+							}
+						}
+					} else {
+						this.cloneOptions = JSON.parse(JSON.stringify(this.options))
+					}
+
+					this.isLoadWithChangedValue = true
+
+				}
+			}
+		},
 		selected: {
 			immediate: true,
 			handler() {
 				this.$nextTick(() => {
-					this.coordsSelected = this.$refs['selected'].getBoundingClientRect()
+					if (this.$refs['selected']) this.setSelectCoords()
 				})
 			}
+		},
+		isOpenSelect() {
+			if (this.$refs['selected']) this.setSelectCoords()
 		}
 	},
-	mounted() {
-		const setCoordsSelected = () => {
-			this.coordsSelected = this.$refs['selected'].getBoundingClientRect()
-		}
+	created() {
+		window.addEventListener('click', () => {
+			this.isOpenSelect = false;
+		});
+	},
+	async mounted() {
+		this.$nextTick()
 
-		setCoordsSelected()
-		window.addEventListener('resize', setCoordsSelected)
+		window.addEventListener('resize', () => {
+			if (this.$refs['selected']) this.setSelectCoords()
+		})
+
+		let start = true
+		let primaryEl = this.$refs['selected'].parentElement
+
+		while(start) {
+			primaryEl = primaryEl.parentElement
+			
+			if (primaryEl.tagName === 'BODY') start = false
+			if (getComputedStyle(primaryEl).overflow === 'scroll') {
+				primaryEl.addEventListener('scroll', () => {
+					if (this.isOpenSelect) this.isOpenSelect = false
+				})
+
+				start = false
+			}
+		}
 	}
 }
 </script>
@@ -203,20 +325,23 @@ export default {
 	}
 
 	.select-container {
+		user-select: none;
 		// width: 300px;
 		// height: 50px;
+		min-height: 44px;
 		position: relative;
 
 		&__selected {
 			position: absolute;
 			top: 0;
 			left: 0;
-			z-index: 99;
+			z-index: 100;
 		}
 		&__dropdown-list {
 			// position: absolute;
+			background-color: #fff;
 			position: fixed;
-			z-index: 100;
+			z-index: 99;
 		}
 	}
 	.selected {
@@ -233,14 +358,25 @@ export default {
 		align-items: center;
 		flex-wrap: wrap;
 
+		&--only {
+			cursor: pointer;
+		}
 		&__select-name {
 			margin: 1.5px;
 		}
-		&__wrap-icon {
+		&__wrap-icons {
+			width: auto;
 			position: absolute;
 			top: 50%;
 			right: 10px;
 			transform: translateY(-50%);
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+
+			&--has-item {
+				width: 60px;
+			}
 		}
 	}
 	.select-name {
@@ -249,14 +385,13 @@ export default {
 		font-weight: 500;
 		color: #1F1F33;
 		padding: 6px 12px;
-		background: #F6F6FB;
-		border-radius: 8px;
 		display: flex;
 		justify-content: center;
 		align-items: center;
 
-		&__select-box-name {
-			margin-right: 12px;
+		&--multiple {
+			background: #F6F6FB;
+			border-radius: 8px;
 		}
 		&__close {
 			cursor: pointer;
@@ -267,27 +402,58 @@ export default {
 		}
 	}
 	.select-box-name {
-		
+		display: flex;
+		justify-content: center;
+		align-items: center;
+
+		&--pale {
+			color: #b7b7cc;
+		}
+		&--mr {
+			margin-right: 10px;
+		}
 	}
 	.select-title {
-		padding-left: 6px;
+		padding: 0 2px 0 6px;
 		display: flex;
 		align-items: center;
+		color: #b7b7cc;
+		font-weight: 300;
 	}
 	.dropdown-list {
 		width: 100%;
-		// background-color: #fff;
-		border: 1px solid rgba(221, 221, 221, .5);;
+		border: 1px solid #eeedf7;
 		border-top: none;
+		border-bottom-right-radius: 8px;
+		border-bottom-left-radius: 8px;
 		color: #000;
 		display: flex;
 		flex-direction: column;
+		box-shadow: 0 3px 7px #eeedf7;
+
+		&::after, &::before {
+			content: '';
+			width: 1px;
+			height: 6px;
+			background-color: #eeedf7;
+			position: absolute;
+			top: -6px
+		}
+		&::after { left: -1px; }
+		&::before { right: -1.2px; }
 	}
-	.option {
-		text-align: left;
-		padding: 20px 0;
+	.option, .option-empty {
 		position: relative;
 		list-style: none;
+		padding: 10px 0;
+	}
+	.option-empty {
+		font-size: 14px;
+		text-align: center;
+	}
+	.option {
+		padding: 20px 0;
+		text-align: left;
 
 		&__name {
 			width: 100%;
@@ -315,6 +481,30 @@ export default {
 			&:hover {
 				filter: invert(.03);
 			}
+		}
+	}
+	.rotate-arraw-down {
+		transform: rotate(0);
+		transition: 0.2s ease-out;
+
+		&--active {
+			transform: rotate(-180deg);
+		}
+	}
+	
+	.dropdown-list-enter-active {
+		animation: open-list .2s;
+
+		@keyframes open-list {
+			0% { opacity: 0; transform: translateY(-50px);}
+			100% { opacity: 1; }
+		}
+	}
+	.dropdown-list-leave-active {
+		animation: hide-list .2s;
+
+		@keyframes hide-list {
+			100% { transform: translateY(-50px); opacity: 0; }
 		}
 	}
 </style>

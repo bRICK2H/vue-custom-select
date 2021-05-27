@@ -4,46 +4,66 @@
 			selected: {{ selected }}
 		</div>
 		<!-- <div class="area-visibility"> -->
-			
-			<!-- <c-select
-				:classes="['option--txt-center', 'option--pd']"
-				label="name"
-				:options="options"
-				:reduce="option => option.value"
-				v-model="selected"
-			/> -->
 			<c-select
 				title="Выберите опцию"
-				label="name"
-				:width="500"
-				:options="options"
+				:value="selected"
+				@input="val => selected = val"
 				:multiple="true"
-				:reduce="o => ({ name: o.name, price: o.price })"
-				:classes="['option--txt-center', 'option--pd']"
-				v-model="selected"
 			/>
+
+				<!-- :s_label="o => o.name" -->
+				<!-- :width="500" -->
+				<!-- o_label="name" -->
+				<!-- :options="options" -->
+				<!-- :clearable="true" -->
+				<!-- :multiple="true" -->
+				<!-- :reduce="o => o.price" -->
+				<!-- :classes="['option--txt-center', 'option--pd']" -->
+				<!-- v-model="selected" -->
+
+			<!-- <v-select style="width: 300px"
+				:value="selected"
+			/> -->
+				<!-- label="name" -->
+				<!-- :options="options" -->
+				<!-- :clearable="true" -->
+				<!-- :reduce="o => ({price: o.price, name: o.name})" -->
+				<!-- :classes="['option--txt-center', 'option--pd']" -->
+				<!-- v-model="selected" -->
 
 		<!-- </div> -->
 	</div>
 </template>
 
 <script>
+import vSelect from 'vue-select'
+import 'vue-select/dist/vue-select.css';
 import CSelect from './plugin/c-select/src/main'
 
 export default {
 	name: 'App',
 	components: {
-		CSelect
+		CSelect,
+		vSelect
 	},
 	data: () => ({
+		// options: ['Маникюр-хороший', 'Педикюр', 'Мужская косметология', 'Стикс-обертывания для тела', [1,23], [1,[3,[4]]]],
 		options: [
-			{ name: 'Маникюр-хороший', price: 490 },
-			{ name: 'Педикюр', price: 300 },
-			{ name: 'Мужская косметология', price: 99 },
-			{ name: 'Стикс-обертывания для тела', price: 33 },
+			{ id: 1, name: 'Маникюр-хороший', price: 490 },
+			{ id: 2, name: 'Педикюр', price: 300 },
+			{ id: 3, name: 'Мужская косметология', price: 99 },
+			{ id: 4, name: 'Стикс-обертывания для тела', price: 33 },
 		],
-		selected: []
+		selected: [
+			{countryCode: 'USA', countryName: 'USA'},
+			{countryCode: 'RU', countryName: 'Russia'},
+		]
 	}),
+	created() {
+		setTimeout(() => {
+			// this.selected = [{countryCode: 'CA', countryName: 'Canada'}]
+		}, 300)
+	}
 }
 </script>
 
@@ -70,7 +90,8 @@ export default {
 		// padding: 1rem 0;
 	}
 	.area-visibility {
-		height: 100px;
+		width: 600px;
+		height: 300px;
 		overflow: scroll;
 		padding: 30px;
 		border: 1px solid red;
