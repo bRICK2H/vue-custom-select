@@ -256,7 +256,6 @@ export default {
 								})
 								console.warn(`[custom_select]: "v-model/value" должен принимать массив из одного элемента, т.к. свойство multiple="false". В данном случае selected будет равен [0-му элементу] все остальное уйдет в options`)
 							} else {
-								console.log('?', this.options, value)
 								this.selected = value
 								this.cloneOptions = [...value, ...this.options].filter(el => {
 									return !(value.map(val => JSON.stringify(val)).includes(JSON.stringify(el)))
@@ -272,12 +271,10 @@ export default {
 		options: {
 			immediate: true,
 			handler(options) {
-				console.log('opt: ', options, this.value)
 				if (this.value) {
-					const test = this.cloneOptions = options.filter(opt => {
+					this.cloneOptions = options.filter(opt => {
 						return !(this.value.map(val => JSON.stringify(val)).includes(JSON.stringify(opt)))
 					})
-					console.log({test})
 				} else {
 					this.cloneOptions = JSON.parse(JSON.stringify(options))
 				}
