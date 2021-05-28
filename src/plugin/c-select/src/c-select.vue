@@ -29,7 +29,9 @@
 							'select-box-name--mr': multiple && (!clearable && selected.length !== 1 || clearable)
 						}"
 					>
-						{{ innerReduce(element, s_label) }}
+						<slot name="select" v-bind="element">
+							{{ innerReduce(element, s_label) }}
+						</slot>
 					</span>
 					<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
 						class="select-name__close"
@@ -80,14 +82,15 @@
 					<li class="option" :class="[...classes]"
 						v-for="(option, i) of cloneOptions"
 						:key="i"
+						@click="select(option)"
 					>
 
-						<div class="option__name"
-							@click="select(option)"
-						>
-							{{ innerReduce(option, o_label) }}
+						<div class="option__name">
+							<slot name="option" v-bind="option" >
+									{{ innerReduce(option, o_label) }}
+							</slot>
 						</div>
-
+						
 					</li>
 				</template>
 			</ul>
@@ -112,19 +115,7 @@ export default {
 	props: {
 		title: {
 			type: String,
-			default: 'Выберите опцию'
-		},
-		s_label: {
-			type: null,
-			default: null
-		},
-		o_label: {
-			type: null,
-			default: null
-		},
-		width: {
-			type: Number,
-			default: 300
+			default: 'Добавить'
 		},
 		value: {
 			type: Array,
@@ -134,6 +125,18 @@ export default {
 			type: Array,
 			default: () => ([])
 		},
+		reduce: {
+			type: Function,
+			default: option => option
+		},
+		s_label: {
+			type: [String, Array, Function],
+			default: ''
+		},
+		o_label: {
+			type:  [String, Array, Function],
+			default: ''
+		},
 		multiple: {
 			type: Boolean,
 			default: false
@@ -142,13 +145,13 @@ export default {
 			type: Boolean,
 			default: true
 		},
+		width: {
+			type: Number,
+			default: 300
+		},
 		classes: {
 			type: Array,
 			default: () => ([])
-		},
-		reduce: {
-			type: Function,
-			default: option => option
 		}
 	},
 	data: () => ({
@@ -204,25 +207,23 @@ export default {
 			if (Array.isArray(el)) {
 				return el.flat().join(', ')
 			} else if (typeof el === 'object') {
-				if (label === null) {
-					return Object.values(el).join(', ')
-				} else {
-					if (Array.isArray(label)) {
-						return  label.map(l => el[l]).join(', ')
-					} else if (typeof label === 'function') {
-						if (label(el) === undefined) {
-							console.warn(`[custom_select]: ${label} Не верно введено имя свойства объекта.`)
-							return el
-						} else if (Array.isArray(label(el))) {
-							return label(el).join(', ')
-						} else if (typeof label(el) === 'object') {
-							return Object.values(label(el)).join(', ')
-						} else {
-							return label(el)
-						}
+				if (Array.isArray(label)) {
+					return  label.map(l => el[l]).join(', ')
+				} else if (typeof label === 'function') {
+					if (label(el) === undefined) {
+						console.warn(`[custom_select]: ${label} Не верно введено имя свойства объекта.`)
+						return el
+					} else if (Array.isArray(label(el))) {
+						return label(el).join(', ')
+					} else if (typeof label(el) === 'object') {
+						return Object.values(label(el)).join(', ')
 					} else {
-						return el[label]
+						return label(el)
 					}
+				} else {
+					return label in el
+						? el[label]
+						: Object.values(el).join(', ')
 				}
 			} else {
 				return el
@@ -239,9 +240,8 @@ export default {
 		value: {
 			immediate: true,
 			handler(value) {
-				if (!this.isLoadWithChangedValue) {
-					if (value.length) {
-	
+				if (value.length) {
+					if (!this.isLoadWithChangedValue) {
 						if(this.multiple) {
 							this.selected = value
 							this.cloneOptions = this.options.filter(opt => {
@@ -256,18 +256,30 @@ export default {
 								})
 								console.warn(`[custom_select]: "v-model/value" должен принимать массив из одного элемента, т.к. свойство multiple="false". В данном случае selected будет равен [0-му элементу] все остальное уйдет в options`)
 							} else {
+								console.log('?', this.options, value)
 								this.selected = value
 								this.cloneOptions = [...value, ...this.options].filter(el => {
 									return !(value.map(val => JSON.stringify(val)).includes(JSON.stringify(el)))
 								})
 							}
 						}
-					} else {
-						this.cloneOptions = JSON.parse(JSON.stringify(this.options))
-					}
 
-					this.isLoadWithChangedValue = true
-
+						this.isLoadWithChangedValue = true
+					} 
+				}
+			}
+		},
+		options: {
+			immediate: true,
+			handler(options) {
+				console.log('opt: ', options, this.value)
+				if (this.value) {
+					const test = this.cloneOptions = options.filter(opt => {
+						return !(this.value.map(val => JSON.stringify(val)).includes(JSON.stringify(opt)))
+					})
+					console.log({test})
+				} else {
+					this.cloneOptions = JSON.parse(JSON.stringify(options))
 				}
 			}
 		},
@@ -314,9 +326,10 @@ export default {
 }
 </script>
 
-<style lang="scss" scoped>
+<style lang="scss">
 	@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500&display=swap');
-	* {
+
+	.select-container * {
 		margin: 0;
 		padding: 0;
 		box-sizing: border-box;
@@ -371,6 +384,9 @@ export default {
 
 			&--has-item {
 				width: 60px;
+				height: 100%;
+				background: #fff;
+				box-shadow: -13px 0 4px #fff;
 			}
 		}
 	}
