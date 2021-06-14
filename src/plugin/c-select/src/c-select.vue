@@ -1,10 +1,7 @@
 <template>
 	<div class="select-container"
 		:style="setStyleToSelect"
-		:ref="uniquesc"
-		:tabindex="tabindex"
-		@blur="blur($event)"
-		@keydown.esc="escape"
+		ref="select-container"
 	>
 
 		<!-- Select -->
@@ -13,7 +10,11 @@
 				{ 'v-selected--only': !multiple || (!selected.length && !cloneOptions.length)},
 				{ 'v-selected--active': isOpenSelect },
 			]"
+			:tabindex="tabindex"
 			ref="selected"
+			@blur="blur($event)"
+			@keydown.enter="enterToFocus($event)"
+			@keydown.up.down.prevent="arrowToFocus($event)"
 			@click="(!multiple && cloneOptions.length) || (!selected.length && !cloneOptions.length)
 				? toggleSelect()
 				: false
@@ -35,6 +36,7 @@
 					<span class="select-box-name select-name__select-box-name"
 						:class="{
 							'select-box-name--pale': !multiple && isOpenSelect,
+							'select-box-name--multiple': multiple,
 							'select-box-name--mr': multiple && (!clearable && selected.length !== 1 || clearable)
 						}"
 					>
@@ -42,10 +44,12 @@
 							{{ innerReduce(element, s_label) }}
 						</slot>
 					</span>
-					<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
-						class="select-name__close"
-						@click.native="drop(i)"
-					/>
+					<div>
+						<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
+							class="select-name__close"
+							@click.native="drop(i)"
+						/>
+					</div>
 				</div>
 			</template>
 
@@ -80,14 +84,13 @@
 		
 		<!-- Optiions -->
 		<transition name="dropdown-list">
-			<ul class="dropdown-list select-container__dropdown-list"
-				v-show="isOpenSelect"
+			<ul v-show="isOpenSelect"
+				class="dropdown-list select-container__dropdown-list"
 				:class="{ 'dropdown-list--active': isOpenSelect }"
 				:style="[setStylesToDropDownList]"
 				:ref="uniquedd"
+				:tabindex="tabindex"
 			>
-				<!-- tabindex="0" -->
-				<!-- @blur="blur" -->
 				<li v-if="!selected.length && !cloneOptions.length"
 					class="option-empty" :class="[...classes]"
 				>
@@ -95,9 +98,12 @@
 				</li>
 
 				<template v-else>
-					<li class="option" :class="[...classes]"
+					<li class="option"
+						:class="[...classes, { 'option--arrow': currOptionArrow === i + 1 }]"
 						v-for="(option, i) of cloneOptions"
 						:key="i"
+						:title="innerReduce(option, o_label)"
+						@mouseenter="hoverOption(i + 1)"
 						@click="select(option)"
 					>
 
@@ -162,8 +168,8 @@ export default {
 			default: true
 		},
 		width: {
-			type: Number,
-			default: 300
+			type: [String, Number],
+			default: 150
 		},
 		behavior: {
 			type: Boolean,
@@ -181,8 +187,8 @@ export default {
 		cloneOptions: [],
 
 		tabindex: 0,
+		currOptionArrow: 1,
 		uniquedd: `dropdown-list:${Math.random()}`,
-		uniquesc: `select-container:${Math.random()}`,
 		currSelectCoords: {},
 	}),
 	computed: {
@@ -200,7 +206,10 @@ export default {
 			}
 		},
 		setStyleToSelect() {
-			return { width: `${this.width}px` }
+			return {
+				width: `${+this.width}px`,
+				minWidth: `${+this.width}px`,
+			}
 		},
 	},
 	methods: {
@@ -225,36 +234,39 @@ export default {
 			this.cloneOptions.push(...this.selected.splice(i, 1))
 			this.$emit('input', this.outerReduce(this.selected))
 		},
-		blur(e) {
-			console.log('blur', e)
-			if (!this.behavior) {
-				this.isOpenSelect = false
-			} else {
-				// КОСТЫЛЬ
-				setTimeout(() => {
-					console.log(this.$refs[this.uniquesc])
-					
-					this.$nextTick(() => {
-						const isOpenDropDownList = document.querySelector('drop-down-container').getAttribute('open')
-						
-						if (isOpenDropDownList === 'true') {
-							this.isOpenSelect = false
-						}
+		enterToFocus(e) {
+			if (this.cloneOptions.length) {
+				this.toggleSelect()
+			}
 
-						// Косяк с фокусом если behavior = true / и escape
-						// this.$refs[this.uniquesc].focus()
-					})
-
-					// if (this.$refs[this.uniquesc]) {
-					// 	this.$refs[this.uniquesc].focus()
-					// }
-
-					// this.isOpenSelect = false
-				}, 120)
+			if (!this.isOpenSelect) {
+				this.select(this.cloneOptions[this.currOptionArrow - 1])
 			}
 		},
-		escape() {
-			console.log(event)
+		arrowToFocus(e) {
+			if (!this.isOpenSelect) return
+
+			const { key } = e
+
+			this.currOptionArrow += key === 'ArrowUp' ? -1 : 1
+			if (this.currOptionArrow > this.cloneOptions.length) {
+				this.currOptionArrow = 1
+			} else if (this.currOptionArrow <= 0) {
+				this.currOptionArrow = this.cloneOptions.length
+			}
+		},
+		hoverOption(index) {
+			this.currOptionArrow = index
+		},
+		blur(e) {
+			const { relatedTarget } = e
+
+			if (relatedTarget && relatedTarget.classList.contains('dropdown-list')) {
+				this.$refs['selected'].focus()
+				return
+			}
+
+			this.isOpenSelect = false
 		},
 		outerReduce(arr) {
 			return arr.map(c => this.reduce(c) === undefined ? c : this.reduce(c))
@@ -345,10 +357,10 @@ export default {
 		selected() {
 			this.isOpenSelect = false
 		},
-		isOpenSelect(val) {
+		isOpenSelect(opened) {
 			this.setCurrSelectCoords()
 
-			if (this.behavior) {
+			if (this.behavior && opened) {
 				const DOMLocalNames = Object.values(document.body.children).map(curr => curr.localName)
 				
 				if (!(DOMLocalNames.includes('drop-down-container'))) {
@@ -357,42 +369,51 @@ export default {
 				}
 
 				const DropDownContainer = document.querySelector('drop-down-container')
-				DropDownContainer.setAttribute('open', val)
-				
+				this.$refs[this.uniquedd].setAttribute('unique-name', this.uniquedd)
 				DropDownContainer.appendChild(this.$refs[this.uniquedd])
 			}
 		},
 	},
-	mounted() {
-		// await this.$nextTick()
+	async mounted() {
+		await this.$nextTick()
 
 		// window.addEventListener('resize', () => {
 		// 	if (this.$refs['selected']) this.setSelectCoords()
 		// })
 
-		// let start = true
-		// let primaryEl = this.$refs['selected'].parentElement
+		if (this.behavior) {
+			let start = true
+			let primaryEl = this.$refs['select-container'].parentElement
 
-		// while(start) {
-		// 	primaryEl = primaryEl.parentElement
-			
-		// 	if (primaryEl.tagName === 'BODY') start = false
-		// 	console.log(getComputedStyle(primaryEl).overflow)
-		// 	if (getComputedStyle(primaryEl).overflow === 'scroll') {
-		// 		primaryEl.addEventListener('scroll', () => {
-		// 			console.log('?')
-		// 			if (this.isOpenSelect) this.isOpenSelect = false
-		// 		})
-
-		// 		start = false
-		// 	}
-		// }
+			while(start) {
+				primaryEl = primaryEl.parentElement
+				const primaryElOverfow = getComputedStyle(primaryEl).overflow
+				
+				if (primaryEl.tagName === 'BODY') start = false
+				if (primaryElOverfow === 'scroll' || primaryElOverfow === 'auto') {
+					primaryEl.addEventListener('scroll', () => {
+						if (this.isOpenSelect && this.behavior) {
+							this.setCurrSelectCoords()
+							// this.isOpenSelect = false
+						}
+					})
+	
+					start = false
+				}
+			}
+		}
 	},
 	beforeDestroy() {
-		const DropDownContainer = document.querySelector('drop-down-container')
-
-		if (DropDownContainer && DropDownContainer.children.length) {
-			DropDownContainer.removeChild(this.$refs[this.uniquedd])
+		if (this.behavior) {
+			const DropDownContainer = document.querySelector('drop-down-container')
+	
+			if (DropDownContainer && DropDownContainer.children.length) {
+				DropDownContainer.children.forEach(curr => {
+					if (curr.getAttribute('unique-name') === this.uniquedd) {
+						DropDownContainer.removeChild(curr)
+					}
+				})
+			}
 		}
 	}
 }
@@ -412,6 +433,7 @@ export default {
 		user-select: none;
 		min-height: 44px;
 		position: relative;
+		border-radius: 8px;
 
 		&__v-selected {
 			position: relative;
@@ -439,11 +461,17 @@ export default {
 		align-items: center;
 		flex-wrap: wrap;
 
+		&:focus {
+			outline: none;
+		}
+		&:focus-visible {
+			border: 2px solid #dfdfdf;
+		}
 		&--only {
 			cursor: pointer;
 		}
 		&--active {
-			// z-index: 1010;
+			border: 2px solid #dfdfdf;
 			border-bottom: 2px solid transparent;
 			border-bottom-left-radius: 0;
 			border-bottom-right-radius: 0;
@@ -465,21 +493,23 @@ export default {
 				width: 60px;
 				height: 100%;
 				background: #fff;
-				box-shadow: -13px 0 4px #fff;
 			}
 		}
 	}
 	.select-name {
+		width: inherit;
 		height: 32px;
 		font-size: 14px;
 		font-weight: 500;
 		color: #1F1F33;
 		padding: 6px 12px;
 		display: flex;
-		justify-content: center;
+		justify-content: flex-start;
 		align-items: center;
 
 		&--multiple {
+			width: auto;
+			max-width: calc(100% - 40px);
 			background: #F6F6FB;
 			border-radius: 8px;
 		}
@@ -492,10 +522,15 @@ export default {
 		}
 	}
 	.select-box-name {
-		display: flex;
-		justify-content: center;
-		align-items: center;
+		width: calc(100% - 70px);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		display: inline-block;
 
+		&--multiple {
+			width: auto
+		}
 		&--pale {
 			color: #b7b7cc;
 		}
@@ -512,6 +547,7 @@ export default {
 	}
 	.dropdown-list {
 		width: 100%;
+		font-family: 'Inter', sans-serif;
 		border: 2px solid #eeedf7;
 		border-top: none;
 		padding-top: 3px;
@@ -523,12 +559,15 @@ export default {
 		box-shadow: 0 8px 7px -7px #828282;
 
 		&--active {
+			border: 2px solid #dfdfdf;
+			border-top: none;
 			z-index: 1010;
 		}
 	}
 	.option, .option-empty {
 		position: relative;
 		list-style: none;
+		cursor: pointer;
 		padding: 10px 0;
 	}
 	.option-empty {
@@ -539,20 +578,21 @@ export default {
 		padding: 20px 0;
 		text-align: left;
 
+		&--arrow {
+			background-color: #dfdfdf;
+		}
 		&__name {
-			width: 100%;
-			height: 100%;
+			height: auto;
+			display: inline-block;
 			position: absolute;
-			top: 0;
-			left: 0;
-			display: flex;
-			justify-content: center;
-			align-items: center;
-			cursor: pointer;
-
-			&:hover {
-				background-color: rgba(221, 221, 221, .13);
-			}
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			text-align: center;
+			padding: 0 10px;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 	}
 	.multiple-add {
