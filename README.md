@@ -3,42 +3,42 @@
 ### $props:
 | Name | Type | Default | Description |
 | ---- | :--: | :-----: | ----------- |
-| title | `String` | **Добавить** | *Название*, показывается пока нет выбранных элементов |
-| value | `Array` | **[ ]** | *Текущее выбранное значение*, используется в связке c @input/value |
-| options | `Array` | **[ ]** | *Список options*, в виде массива строк или объектов |
-| reduce | `Function` | **el => el** | *Выборка возвращаемых элементов из списка*, по ключам объекта |
-| s_label | `String, Array, Function` | **''** | *Выборка элементов в шаблоне select*, устанавливает ключ фильтрации из объекта |
-| o_label | `String, Array, Function` | **''** | *Выборка элементов в шаблоне option*, устанавливает ключ фильтрации из объекта |
-| multiple | `Boolean` | **false** | *Множественный **true** или единственный **false** выбор из списка* |
-| clearable | `Boolean` | **true** | *Предоставляется возможность удалять элемент из select*, если ***true*** удаляются все элементы, если ***false*** и ***!multiple*** элементы не удаляются или если ***false*** и ***multiple*** удаляются все элементы кроме последнего |
-| width | `Number` | **300** | *Ширина select* |
-| classes | `Array` | **[ ]** | *Массив классов для options* |
+| placeholder | `String` | **Добавить** | *Заголовок*, показывается пока нет выбранных элементов |
+| raisePlaceholder | `Boolean` | **false** | *Устанавить заголовок над элементом поля*, при необходимости, если всегда нужно показывать заголовок |
+| value | `null` | **any** | *Текущее выбранное значение* |
+| options | `Array` | **[ ]** | *Список options*, вида - массив примитивов или массив объектов |
+| reduce | `Function` | **option => option** | *Выборка возвращаемых элементов из списка по ключам объекта*, так же эта выборка включает в себя зависимость на совпадение элементов которые фигурируют в select и options, если значение ключей не будут совпадать, то этот элемент не будет записан в select |
+| label | `String` | **label** | *Фильтр значений объектов*, устанавливает выбранное значение в шаблоне select и options  |
+| multiple | `Boolean` | **false** | *Предоставить множественный выбор элементов* |
+| clearable | `Boolean` | **true** | *Удалить элемент из select*, если ***true*** удаляются все элементы, если ***false*** и ***!multiple*** элементы не удаляются или если ***false*** и ***multiple*** удаляются все элементы кроме последнего |
+| searchable | `Boolean` | **true** | *Установить поле для поиска данных* в options |
+| saveable | `Boolean` | **false** | *Сохранить значение поля при открытии* в select |
+| width | `[String, Number]` | **auto** | *Ширина select* |
+| bahavior | `Boolean` | **false** | *Определяет поведение options*, если истина то список будет виден из под любого родителя снаружи |
+| classes | `Array` | **[ ]** | *Массив классов для select и options* добавление классов требует префикса вида - ['select-className', 'option-className']|
 
-##### Example s_label / o_label
-```javascript
-	1. _label="string" *вернет объект с указанным ключём в _label*
-	const options = [
-		{ name: 'name1', age: 23 },
-		{ name: 'name2', age: 33 }
-	]
-	_label="name" вернет [{ name: 'name1' }, {name: 'name2'}]
-
-	2. _label="array" *вернет объект с указанными ключами в _label*
-	const options = [
-		{ name: 'name1', age: 23, job: 'front' },
-		{ name: 'name2', age: 33, job: 'back' }
-	]
-	_label="[age, job]" вернет [{ age: 23, job: 'front' }, { age: 33, job: 'back' }]
-
-	3. _label="function" *вернет объект с передаваемыми ключaми из функции _label*
-	const options = [
-		{ name: 'name1', age: 23, job: 'front' },
-		{ name: 'name2', age: 33, job: 'back' }
-	]
-	_label="val => val.age" вернет [{ age: 23}, { age: 33}]
-	_label="val => ({age: val.age, name: val.name})" вернет [{ age: 23, name: 'name1'}, { age: 33, name: 'name2'}]
-
-	*Аналогичным образом работает функция reduce*
+### $events:
+```js
+	// Событие перед созданием нового значения, возвращется создаваемое значение
+	this.$emit('option:before-create', creatable-option)
+	// Событие после создания нового значения, возвращается новое созданное значение
+	this.$emit('option:created', created-option)
+	// Событие перед удалением значения, возвращается удаляемое значение
+	this.$emit('option:before-delete', deletable-option)
+	// Событие после удаления значения, возвращается удаленное значение
+	this.$emit('option:deleted', deleted-option)
+	// Событие фокуса, возвращается установленное значение в searchable, при saveable = true
+	this.$emit('search:focus', focus-option)
+	// Событие поиска, возвщается текущее набранное значение
+	this.$emit('search', search-option)
+	// Событие потери фокуса, возвращает оставшееся значение в searchable, при saveable = tru
+	this.$emit('search:blur', blur-option)
+	// Событие выбора, возвращает выбранные значения
+	this.$emit('input', selectable-option)
+	// Событие открытия списка options
+	this.$emit('options:opened')
+	// Событие закрытия списка options
+	this.$emit('options:closed')
 ```
 
 ### $slots:

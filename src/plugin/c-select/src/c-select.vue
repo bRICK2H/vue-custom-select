@@ -1,41 +1,62 @@
 <template>
 	<div class="select-container"
-		:class="[...getSelectClass]"
 		:style="setStyleToSelect"
 		ref="select-container"
 	>
 
 		<!-- Select -->
-		<div class="v-selected select-container__v-selected" :class="[
-				{ 'v-selected--only': !multiple || (!Object.keys(selected).length && !cloneOptions.length)},
+		<div class="v-selected select-container__v-selected"
+			:class="[
+				{ 'v-selected--only': !multiple || (!selected.length && !cloneOptions.length)},
+				{ 'v-selected--raise': multiple && selected.length && raisePlaceholder },
 				{ 'v-selected--active': isOpenSelect },
+				...getSelectClass
 			]"
+			:ref="uniqueselected"
 			:tabindex="tabindex"
-			ref="selected"
-			@blur="blur($event)"
+			@blur="globalBlur($event, 'select')"
 			@keydown.enter="enterToFocus"
 			@keydown.up.down.prevent="arrowToFocus($event)"
-			@click="(!multiple && cloneOptions.length) || (!Object.keys(selected).length && !cloneOptions.length)
-				? toggleSelect()
-				: false
-			">
-			<div v-if="!Object.keys(selected).length"
-				class="select-title v-selected__select-title"
-				key="title"
-			>
-				* {{ title }}
+			@click="!multiple ? toggleSelect() : false"
+		>
 
-			</div>
-			<template v-else>
-				<div class="select-name v-selected__select-name" :class="{'select-name--multiple': multiple}"
-					v-for="(select, i) of getSelected" :key="`sl${i}`">
+			<transition name="placeholder">
+				<span v-if="raisePlaceholder && selected.length || searchable && isOpenSelect && !selected.length"
+					class="select-title v-selected__select-title"
+					:style="{ maxWidth: width === 'auto' ? `calc(100% - 10px)` : `${width - 20}px` }"
+				>
+					{{ placeholder }}
+				</span>
+			</transition>
+
+			<template v-if="!selected.length">
+				<template v-if="searchable && isOpenSelect" />
+				<p v-else
+					class="select-placeholder v-selected__select-placeholder"
+					:class="{ 'select-placeholder--empty': !selected.length }"
+					key="title"
+				>
+					* {{ placeholder }}
+				</p>
+			</template>
+			<template v-else-if="multiple || !multiple && !searchable || !multiple && searchable && !isOpenSelect">
+				<div class="select-name v-selected__select-name"
+					:class="[
+						{ 'select-name--multiple': multiple },
+						{ 'select-name--single-arrow': !multiple && !clearable },
+						{ 'select-name--single-clearable': !multiple && clearable },
+					]"
+					v-for="(select, i) of selected"
+					:key="`sl${i}`"
+				>
 					<span class="select-box-name select-name__select-box-name"
 						:class="{
 							'select-box-name--pale': !multiple && isOpenSelect,
+							'select-box-name--single': !multiple && !clearable,
 							'select-box-name--multiple': multiple,
-							'select-box-name--mr': multiple && (!clearable && Object.keys(selected).length !== 1 || clearable)
+							'select-box-name--mr': multiple && (!clearable && selected.length !== 1 || clearable)
 						}"
-						:title="innerReduce(select)"
+						:title="JSON.stringify(innerReduce(select))"
 					>
 						<slot name="select"
 							v-bind="select"
@@ -43,35 +64,66 @@
 							{{ innerReduce(select) }}
 						</slot>
 					</span>
-					<div>
-						<i-close v-if="multiple && (!clearable && Object.keys(selected).length !== 1 || clearable)"
-							class="select-name__close" @click.native="drop(i)" />
+					<div class="select-box-close select-name__select-box-close">
+						<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
+							class="select-box-close__close"
+							@click.native="drop(i, select)"
+						/>
 					</div>
 				</div>
 			</template>
 
+			<!-- Multiple icon - add -->
 			<template v-if="multiple">
 				<i-add v-if="cloneOptions.length"
 					class="multiple-add"
+					:ref="uniqueadd"
 					:class="[
 						{ 'multiple-add--hover': cloneOptions.length },
 					]"
-					@click.native="cloneOptions.length
-						? toggleSelect()
-						: false
-					"
+					@click.native="toggleSelect"
+					:tabindex="!isOpenSelect ? null : tabindex"
 				/>
 			</template>
+
+			<!-- Single icons - delete/arrow -->
 			<template v-else>
 				<div class="v-selected__wrap-icons"
-					:class="{'v-selected__wrap-icons--has-item': Object.keys(selected).length && clearable}">
+					:class="{ 'v-selected__wrap-icons--has-item': selected.length && clearable }"
+				>
 					<template v-if="clearable">
-						<i-close v-if="Object.keys(selected).length" @click.native.stop="drop(0)" />
-						<i-hor-line v-if="Object.keys(selected).length" />
+						<i-close v-if="selected.length"
+							@click.native.stop="drop(0)"
+						/>
+						<i-hor-line v-if="selected.length" />
 					</template>
-					<i-arrow-down class="rotate-arraw-down" :class="{'rotate-arraw-down--active': isOpenSelect}" />
+					<i-arrow-down class="rotate-arraw-down"
+						:class="{ 'rotate-arraw-down--active': isOpenSelect }"
+					/>
 				</div>
 			</template>
+
+			<!-- Searchable -->
+			<input v-if="searchable && isOpenSelect"
+				type="text"
+				class="v-searchable"
+				:class="[
+					{ 'v-searchable--single-clearable': !multiple && clearable },
+					{ 'v-searchable--default': !multiple && !selected.length }
+				]"
+				:ref="uniquesearch"
+				:placeholder="
+					multiple
+						? ''
+						: arrayElementType(selected.map(val => innerReduce(val))) === 'object'
+							? JSON.stringify(selected.map(val => innerReduce(val)))
+							: selected.map(val => innerReduce(val)).join(', ')
+				"
+				@blur="globalBlur($event, 'search')"
+				@focus="searchFocus($event)"
+				@click.stop=""
+				v-model="inputSearch"
+			>
 		</div>
 
 		<!-- Optiions -->
@@ -79,26 +131,31 @@
 			<ul v-show="isOpenSelect" class="dropdown-list select-container__dropdown-list"
 				:class="[...getOptinsClass, { 'dropdown-list--active': isOpenSelect }]"
 				:style="[setStylesToDropDownList]"
-				:ref="uniquedd"
-				:tabindex="tabindex">
-				<li v-if="!Object.keys(selected).length && !cloneOptions.length" class="option-empty">
-					Данные отсутствуют
+				:ref="uniqueddl"
+				:tabindex="tabindex"
+			>
+				<li v-if="!filterOptions.length" class="option-empty">
+					<template v-if="inputSearch">
+						Совпадений не найдено
+					</template>
+					<template v-else>
+						Список элементов пуст
+					</template>
 				</li>
 
 				<template v-else>
 					<li class="option" :class="{ 'option--arrow': currOptionArrow === i + 1 }"
-						v-for="(option, i) of cloneOptions"
+						v-for="(option, i) of filterOptions"
 						:key="i"
 						@mouseenter="hoverOption(i + 1)"
 						@click="select(option)"
-						:title="innerReduce(option)">
+						:title="JSON.stringify(innerReduce(option))">
 
 						<div class="option__name">
 							<slot name="option" v-bind="option">
 								{{ innerReduce(option) }}
 							</slot>
 						</div>
-
 					</li>
 				</template>
 			</ul>
@@ -121,9 +178,13 @@
 			iArrowDown
 		},
 		props: {
-			title: {
+			placeholder: {
 				type: String,
 				default: 'Добавить'
+			},
+			raisePlaceholder: {
+				type: Boolean,
+				default: false
 			},
 			value: null,
 			options: {
@@ -135,7 +196,7 @@
 				default: option => option,
 			},
 			label: {
-				type: [String, Array, Function],
+				type: String,
 				default: 'label'
 			},
 			multiple: {
@@ -145,6 +206,14 @@
 			clearable: {
 				type: Boolean,
 				default: true
+			},
+			searchable: {
+				type: Boolean,
+				default: true
+			},
+			saveable: {
+				type: Boolean,
+				default: false,
 			},
 			width: {
 				type: [String, Number],
@@ -160,15 +229,20 @@
 			}
 		},
 		data: () => ({
-			uniquedd: `dropdown-list:${Math.random()}`,
+			uniqueddl: `dropdown-list:${Math.random()}`,
+			uniquesearch: `searchable:${Math.random()}`,
+			uniqueselected: `selected:${Math.random()}`,
+			uniqueadd: `add:${Math.random()}`,
 			name: 'select',
-			active: true,
-			isOpenSelect: false,
 			tabindex: 0,
+			inputSearch: '',
 			currOptionArrow: 1,
 			selected: [],
 			cloneOptions: [],
 			currSelectCoords: {},
+			active: true,
+			isOpenSelect: false,
+			isPermissionToUpdate: false,
 		}),
 		computed: {
 			getSelectClass() {
@@ -193,168 +267,142 @@
 			setStyleToSelect() {
 				return {
 					width: this.width === 'auto' ? '100%' : `${+this.width}px`,
-					minWidth: `${+this.width}px`,
 				}
 			},
-			getSelected() {
-				return this.multiple
-					? this.selected
-					: Array.isArray(this.value) ? [this.value[this.value.length - 1]] : [this.value]
+			defineValue() {
+				return this.value === null || this.value === undefined
+					? []
+					: Array.isArray(this.value)
+						? this.value
+						: [this.value]
 			},
 			modifyOptions() {
 				const isArrayOption = this.options.some(curr => Array.isArray(curr))
-				return isArrayOption ? this.options.map(curr => curr[0]) : this.options
+				return isArrayOption ? this.options.flat() : this.options
 			},
-			isExistLabel() {
-				if ('label' in this.$options.propsData) {
-					if (this.arrayElementType(this.options) === 'object') {
-						if (Array.isArray(this.value) && this.arrayElementType(this.value) === 'object') {
-							const isExistLabel = this.value.some(curr => Object.keys(curr).includes(this.label))
-							
-							if (isExistLabel) {
-								const isExistValueOfLabel = this.value.some(curr => {
-									return this.options.some(c => Object.values(c).includes(curr[this.label]))
-								})
-								return isExistValueOfLabel
-									? { result: true } : { result: false, error: 'diff value' }
-							} else {
-								const isExistValues = this.value.map(Object.values)
-									.some(currVal => {
-										return currVal.some(v => {
-											return this.options.map(Object.values).some(o => {
-												return o.includes(v)
-											})
-										})
-									})
-								return isExistValues
-									? { result: false, error: 'dnt exist' } : { result: false, error: 'nothing exist' }
-							}
-						} else if (!Array.isArray(this.value) && typeof this.value === 'object') {
-							const isExistLabel = Object.keys(this.value).includes(this.label)
+			filterOptions() {
+				return this.cloneOptions.filter(curr => {
+					curr = 'label' in this.$options.propsData
+						&& typeof curr === 'object'
+						&& this.label in curr
+							? curr[this.label] : curr
 
-							if (isExistLabel) {
-								const isExistValueOfLabel = this.options.some(curr => {
-									return Object.values(curr).includes(this.value[this.label])
-								})
-								return isExistValueOfLabel
-									? { result: true } : { result: false, error: 'diff value' }
-							} else {
-								const isExistValues = this.options.some(curr => {
-									return Object.values(this.value).some(v => {
-										return Object.values(curr).includes(v)
-									})
-								})
-
-								return isExistValues
-									? { result: false, error: 'dnt exist' } : { result: false, error: 'nothing exist' }
-							}
-						} else {
-							return { result: true }
-						}
-					} else {
-						if (Array.isArray(this.value) && this.arrayElementType(this.value) === 'object') {
-							const isExistLabel = this.value.some(curr => Object.keys(curr).includes(this.label))
-							
-							if (isExistLabel) {
-								const isExistValueOfLabel = this.value.some(curr => this.options.includes(curr[this.label]))
-								
-								return isExistValueOfLabel
-									? { result: true } : { result: false, error: 'diff value' }
-							} else {
-								const isExistValues = this.value.some(curr => {
-									return Object.values(curr).some(v => {
-										return this.options.includes(v)
-									})
-								})
-
-								return isExistValues
-									? { result: false, error: 'dnt exist' } : { result: false, error: 'nothing exist' }
-							}
-						} else if (!Array.isArray(this.value) && typeof this.value === 'object') {
-							const isExistLabel = Object.keys(this.value).includes(this.label)
-
-							if (isExistLabel) {
-								const isExistValueOfLabel = this.options.includes(this.value[this.label])
-								
-								return isExistValueOfLabel
-									? { result: true } : { result: false, error: 'diff value' }
-							} else {
-								const isExistValues = this.options.some(curr => Object.values(this.value).includes(curr))
-
-								return isExistValues
-									? { result: false, error: 'dnt exist' } : { result: false, error: 'nothing exist' }
-							}
-						} else {
-							return { result: true }
-						}
-					}
-	
-				} else {
-					return { result: false }
-				}
-			}
+					return String(curr).toLowerCase()
+						.includes(this.inputSearch.toLowerCase())
+				})
+			},
 		},
 		methods: {
 			select(option) {
+				this.$emit('option:before-create', option)
 				this.multiple
 					? this.selected.push(option)
 					: this.selected.splice(0, 1, option)
+				
+				this.isPermissionToUpdate = true
+				this.$emit('option:created', option)
 			},
-			drop(i) {
+			drop(i, option) {
 				this.setActiveSelect()
 
+				this.$emit('option:before-delete', option)
 				this.multiple
 					? this.selected.splice(i, 1)
 					: this.selected = []
+
+				this.isPermissionToUpdate = true
+				this.$emit('option:deleted', option)
 			},
 			enterToFocus() {
-				if (this.cloneOptions.length) {
-					this.toggleSelect()
-				}
+				this.toggleSelect()
 
-				if (!this.isOpenSelect) {
-					this.select(this.cloneOptions[this.currOptionArrow - 1])
+				if (this.filterOptions.length && !this.isOpenSelect) {
+					this.select(this.filterOptions[this.currOptionArrow - 1])
 				}
 			},
 			arrowToFocus(e) {
 				if (!this.isOpenSelect) return
 
 				const { key } = e
-
 				this.currOptionArrow += key === 'ArrowUp' ? -1 : 1
-				if (this.currOptionArrow > this.cloneOptions.length) {
+				
+				if (this.currOptionArrow > this.filterOptions.length) {
 					this.currOptionArrow = 1
 				} else if (this.currOptionArrow <= 0) {
-					this.currOptionArrow = this.cloneOptions.length
+					this.currOptionArrow = this.filterOptions.length
 				}
+
+				this.$nextTick(() => {
+					const ddl = this.$refs[this.uniqueddl]
+					
+					if (key === 'ArrowUp') {
+						if (this.currOptionArrow === this.filterOptions.length) {
+							ddl.scrollTop = this.filterOptions.length * ddl.firstChild.offsetHeight
+						} else if (this.currOptionArrow * ddl.firstChild.offsetHeight <= ddl.scrollTop) {
+							ddl.scrollTop -= ddl.firstChild.offsetHeight
+						}
+					} else {
+						if (ddl.firstChild.offsetHeight * this.currOptionArrow > ddl.offsetHeight) {
+							ddl.scrollTop += ddl.firstChild.offsetHeight
+						} else if (this.currOptionArrow === 1) {
+							ddl.scrollTop = 0
+						}
+					}
+				})
 			},
 			hoverOption(index) {
 				this.currOptionArrow = index
 			},
-			blur(e) {
+			globalBlur(e, type) {
 				const { relatedTarget } = e
 
-				if (relatedTarget && relatedTarget.classList.contains('dropdown-list')) {
-					this.$refs['selected'].focus()
-					return
-				}
+				if (relatedTarget && relatedTarget.classList.contains('dropdown-list')) return
+				if (type === 'select') {
+					if (!this.searchable) {
+						if (this.multiple && relatedTarget === this.$refs[this.uniqueadd].$el) return
 
-				this.isOpenSelect = false
+						this.isOpenSelect = false
+					}
+				} else {
+					if (this.searchable) {
+						if (!this.saveable) {
+							this.inputSearch = ''
+						} else {
+							this.$emit('search:blur', this.inputSearch)
+						}
+					}
+					
+					if (this.multiple) {
+						if (relatedTarget === this.$refs[this.uniqueadd].$el) return
+					} else {
+						if (relatedTarget === this.$refs[this.uniqueselected]) return
+					}
+					
+					this.isOpenSelect = false
+				}
 			},
-			outerReduce(arr) {
-				return arr.map(c => this.reduce(c) === undefined ? c : this.reduce(c))
+			searchFocus(e) {
+				const { target } = e
+
+				if (this.searchable) {
+					if (this.saveable) {
+						this.inputSearch = target.placeholder
+					}
+
+					this.$emit('search:focus', target.placeholder)
+				}
 			},
 			innerReduce(el) {
-				return !Array.isArray(el) && typeof el === 'object' && this.label in el
+				return typeof el === 'object' && this.label in el
 					? el[this.label] : el
 			},
 			toggleSelect() {
 				this.isOpenSelect = !this.isOpenSelect
 			},
 			setCurrSelectCoords() {
-				const { top, left, width } = this.$refs['selected'].getBoundingClientRect()
-				const height = this.$refs['selected'].offsetHeight
-
+				const { top, left, width } = this.$refs[this.uniqueselected].getBoundingClientRect()
+				const height = this.$refs[this.uniqueselected].offsetHeight
+	
 				this.$nextTick(() => {
 					this.$set(this.currSelectCoords, 'top', top)
 					this.$set(this.currSelectCoords, 'left', left)
@@ -365,173 +413,146 @@
 			setActiveSelect() {
 				this.$parent.$children.forEach(curr => {
 					if (curr.name === 'select' && JSON.stringify(this.value) === JSON.stringify(curr.value)) {
-						curr.active = false
+						curr.active = this.multiple === curr.multiple
 					}
 				})
-
-				this.active = true
 			},
 			isChosenExist(value) {
 				return JSON.stringify(this.getCurrIndices(value)) === JSON.stringify(this.getCurrIndices(this.selected))
 			},
 			arrayElementType(data) {
-
-				if (!Array.isArray(data)) return typeof data
-				
-				return data.reduce((acc, curr) => {
-					return Array.isArray(curr) ? 'array' : typeof curr
-				}, '')
+				const [el] = data
+				return typeof el
 			},
-			getCurrIndices(value, v = 0) {
-				return this.modifyOptions.reduce((acc, curr, i) => {
-					if (value !== undefined) {
-						if (Array.isArray(value)) {
-							/**
-							 * TODO: Value вида массив
-							 */
+			updateOptions(selected) {
+				const indices = this.getCurrIndices(selected)
+				this.cloneOptions= this.modifyOptions.filter((c, i) => !indices.includes(i))
+			},
+			formatToReduce(data, numberToString = true) {
+				if (this.arrayElementType(data) === 'object') {
+					const result = data.map(curr => {
+						return Object.entries(curr).reduce((acc, val) => {
+							const [key, value] = val
+							acc[key] = typeof value === 'number' && numberToString
+								? String(value)
+								: value
 
-							if (this.arrayElementType(value) === 'array') {
-								// need on no ?
-							} else if (this.arrayElementType(value) === 'object') {
+							return acc
+						}, {})
+					})
 
-								if ((this.arrayElementType(this.modifyOptions) === 'object')) {
-									if (this.isExistLabel.result) {
-										// ? Сравнение значений value из ключа label с значениями объектов option
-										if (Object.values(curr).some(curr => value.map(c => c[this.label]).includes(curr))) {
-											acc.push(i)
-										}
-									} else {
-										// ? Сравнение значений value с значениями объектов option
-										const isExistValues = value.some(c => {
-											return Object.values(c).some(val => {
-												return Object.values(curr).includes(val)
-											})
-										})
+					return 'reduce' in this.$options.propsData
+						? result.map(curr => this.reduce(curr))
+						: result
+				} else {
+					return data.map(curr => {
+						return  typeof curr === 'number' && numberToString
+							? String(curr)
+							: curr
+					})
+				}
+			},
+			getCurrIndices(value) {
+				const _value = this.formatToReduce(value)
+				const _options = this.formatToReduce(this.modifyOptions)
 
-										if (value.map(JSON.stringify).includes(JSON.stringify(curr)) || isExistValues) {
-											acc.push(i)
-										}
-									}
-								} else {
-									if (this.isExistLabel.result) {
-										// ? Сравнение значений value из ключа label с примитивными значениями option
-										if (value.map(c => c[this.label]).includes(curr)) acc.push(i)
-									} else {
-										// ? Сравнение значений value с примитивными значениями option
-										const isExistValues = value.some(c => {
-											return Object.values(c).includes(curr)
-										})
-
-										if (isExistValues) acc.push(i)
-									}
-								}
-							} else {
-								if ((this.arrayElementType(this.modifyOptions) === 'object')) {
-									// ? Сравнение value как массив примитовов со значениями объектов option
-									if (Object.values(curr).some(mo => value.includes(mo))) {
-										acc.push(i)
-									}
-								} else {
-									// ? Сравнение value как массив примитовов с примитивами option
-									if (value.includes(curr)) acc.push(i)
-								}
-							}
-
-						} else if (typeof value === 'object') {
-							/**
-							 * TODO: Value вида объект
-							 */
-
-							if (this.arrayElementType(this.modifyOptions) === 'object') {
-								if (this.isExistLabel.result) {
-									/**
-									 * ? Объекты разняться, сравнение по "lable"
-									 * * Сравнение из предоставленных ключей "lable" c объектами option
-									 */
-									if (value[this.label] === curr[this.label]) acc.push(i)
-								} else {
-									/**
-									 * ? Объекты разняться, сравнение по имеющимся значениям
-									 * * Сравнение из имеющихся значения у объекта value со значениями объектов option
-									 */
-
-									if (JSON.stringify(curr) === JSON.stringify(value)
-										|| Object.values(curr).some(curr => Object.values(value).includes(curr))) {
-										acc.push(i)
-									}
-								}
-							} else {
-								if (this.isExistLabel.result) {
-									/**
-									 * ? Сравнение значения ключа label с значениями option
-									 */
-									if (value[this.label].includes(curr)) acc.push(i)
-								} else {
-									/**
-									 * ? Сравнение значений кличей value со значениями option
-									 */
-									if (Object.values(value).includes(curr)) acc.push(i)
-								}
-							}
-
+				return _options.reduce((acc, curr, i) => {
+					if (_value.map(JSON.stringify).includes(JSON.stringify(curr))) {
+							acc.push(i)
 						} else {
-							/**
-							 * TODO: value вида примитив
-							 */
+							if (this.arrayElementType(_options) === 'object') {
+								if (this.arrayElementType(_value) === 'object') {
+									const sameKeys = Object.keys(curr).filter(key => {
+										return _value.map(Object.keys).every(keys => {
+											return keys.includes(key)
+										})
+									})
+									
+									if (sameKeys.length) {
+										const _jsonValues = _value.map(val => {
+											return JSON.stringify(sameKeys.reduce((a, c) => (a[c] = val[c], a), {}))
+										})
+										const _jsonOption = JSON.stringify(sameKeys.reduce((a, c) => (a[c] = curr[c], a), {}))
 
-							if (this.arrayElementType(this.modifyOptions) === 'object') {
-								// ? Option вида объект
-								if (Object.values(curr).includes(value)) acc.push(i)
-							} else {
-								// ? Option вида примитив
-								if (value === curr) acc.push(i)
+										if (_jsonValues.includes(_jsonOption)) acc.push(i)
+									}
+
+								} else {
+									if (Object.keys(curr).some(key => _value.includes(curr[key]))) {
+										acc.push(i)
+									}
+								}
 							}
-
 						}
-					}
-					
+
 					return acc
+					
 				}, [])
 			},
 		},
 		watch: {
 			value: {
-				immediate: true,
 				deep: true,
-				handler(value) {
-					if (!this.isChosenExist(value)) {
-						this.selected = this.modifyOptions.filter((c, i) => this.getCurrIndices(value, 1).includes(i))
+				handler() {
+					if (!this.active) {
+						this.selected = []
+						return
+					}
+
+					if (!this.isChosenExist(this.defineValue)) {
+						const indices = this.getCurrIndices(this.defineValue)
+						this.selected = this.modifyOptions.filter((c, i) => indices.includes(i))
 					}
 				}
 			},
 			selected: {
-				immediate: true,
 				deep: true,
 				handler(selected) {
-					this.isOpenSelect = false
-					this.cloneOptions = this.modifyOptions.filter((c, i) => !this.getCurrIndices(selected).includes(i))
+					if (this.options.length) {
+						this.updateOptions(selected)
+					}
 
-					if (this.active) {
-						const isObjectValue = Array.isArray(this.value)
-							? this.arrayElementType(this.value) === 'object'
-							: typeof this.value === 'object'
-
-
-						const outerResult = 'reduce' in this.$options.propsData && isObjectValue
-							? selected.map(curr => this.reduce(curr)) : selected
+					if (this.active && this.isPermissionToUpdate) {
+						const outerResult = this.formatToReduce(selected, false)
 
 						this.$emit(
 							'input',
 							this.multiple
 								? outerResult
-								: outerResult[0]
+								: outerResult.length
+									? outerResult[0]
+									: null
 						)
+
+						this.isOpenSelect = false
+						this.isPermissionToUpdate = false
+					}
+				}
+			},
+			options: {
+				deep: true,
+				handler(options) {
+					if (options.length) {
+						this.updateOptions(this.selected)
+					}
+
+					if (!this.defineValue.length) {
+						this.selected = []
+					} else {
+						const indices = this.getCurrIndices(this.defineValue)
+
+						if (!indices.length) {
+							this.selected = this.defineValue
+						}
 					}
 				}
 			},
 			isOpenSelect(opened) {
 				this.setActiveSelect()
-				this.setCurrSelectCoords()
+
+				this.$nextTick(() => {
+					this.setCurrSelectCoords()
+				})
 
 				if (this.behavior && opened) {
 					const DOMLocalNames = Object.values(document.body.children).map(curr => curr.localName)
@@ -542,35 +563,49 @@
 					}
 
 					const DropDownContainer = document.querySelector('drop-down-container')
-					this.$refs[this.uniquedd].setAttribute('unique-name', this.uniquedd)
-					DropDownContainer.appendChild(this.$refs[this.uniquedd])
+					this.$refs[this.uniqueddl].setAttribute('unique-name', this.uniqueddl)
+					DropDownContainer.appendChild(this.$refs[this.uniqueddl])
+				}
+
+				if (opened) {
+					this.$emit('options:opened')
+					if (this.searchable) {
+						this.$nextTick(() => {
+							this.$refs[this.uniquesearch].focus()
+						})
+					} else {
+						this.$refs[this.uniqueselected].focus()
+					}
+				} else {
+					this.$emit('options:closed')
 				}
 			},
+			inputSearch(value) {
+				this.$emit('search', value)
+			}
 		},
 		created() {
-			const { result, error } = this.isExistLabel
+			const indices = this.getCurrIndices(this.defineValue)
 
-			if (!result) {
-				if (error === 'dnt exist') {
-					console.warn(`[izi-select]: Выбранный label="${this.label}" не существует в объекте ключей value! Поиск реализуется по совпадению переданных значений!`)
-				} else if (error === 'diff value') {
-					console.warn(`[izi-select]: Значение value из выбранного label="${this.label}" не совпадают со значениями из option!`)
-				} else if (error === 'nothing exist') {
-					console.warn(`[izi-select]: Ни переданный label="${this.label}", ни значения в value и option не совпадают!`)
-				} else {
-					// другие ошибки
-				}
+			this.selected = indices.length
+				? this.modifyOptions.filter((c, i) => indices.includes(i))
+				: this.defineValue
+
+			if ('label' in this.$options.propsData && this.arrayElementType(this.defineValue) === 'object') {
+				this.defineValue.forEach(curr => {
+					if (!(this.label in curr)) {
+						console.warn(`[izi-select]: Указанный ключ label="${this.label}" не найден в представленных ключах объекта ${JSON.stringify(curr)}.`)
+					}
+				})
 			}
 		},
 		async mounted() {
 			await this.$nextTick()
-
-			// window.addEventListener('resize', () => {
-			// 	if (this.$refs['selected']) this.setSelectCoords()
-			// })
+			this.setCurrSelectCoords()
 
 			if (this.behavior && this.$refs['select-container']) {
 				let start = true
+				let startScroll = 0
 				let primaryEl = this.$refs['select-container'].parentElement
 
 				while (start) {
@@ -579,9 +614,12 @@
 
 					if (primaryEl.tagName === 'BODY') start = false
 					if (['auto', 'scroll', 'hidden scroll'].includes(primaryElOverfow)) {
-						primaryEl.addEventListener('scroll', () => {
+						primaryEl.addEventListener('scroll', e => {
 							if (this.isOpenSelect && this.behavior) {
 								this.setCurrSelectCoords()
+
+								this.isOpenSelect = startScroll < e.target.scrollTop ? false : false
+								startScroll = e.target.scrollTop
 							}
 						})
 
@@ -596,7 +634,7 @@
 
 				if (DropDownContainer && DropDownContainer.children.length) {
 					DropDownContainer.children.forEach(curr => {
-						if (curr.getAttribute('unique-name') === this.uniquedd) {
+						if (curr.getAttribute('unique-name') === this.uniqueddl) {
 							DropDownContainer.removeChild(curr)
 						}
 					})
@@ -614,6 +652,7 @@
 		padding: 0;
 		box-sizing: border-box;
 		font-family: 'Inter', sans-serif;
+		
 	}
 
 	.select-container {
@@ -658,6 +697,9 @@
 			border: 2px solid #dfdfdf;
 		}
 
+		&--raise {
+			padding: 6px 2px 2px;
+		}
 		&--only {
 			cursor: pointer;
 		}
@@ -685,29 +727,60 @@
 
 			&--has-item {
 				width: 60px;
-				height: 100%;
+				height: 80%;
 				background: #fff;
 			}
 		}
 	}
 
 	.select-name {
-		width: inherit;
+		width: auto;
 		height: 32px;
 		font-size: 14px;
 		font-weight: 500;
 		color: #1F1F33;
-		padding: 6px 12px;
+		padding: 0 12px;
 		display: flex;
 		justify-content: flex-start;
 		align-items: center;
 
+		&--single-arrow {
+			max-width: calc(100% - 20px);
+		}
+		&--single-clearable {
+			max-width: calc(100% - 70px);
+		}
 		&--multiple {
-			width: auto;
-			max-width: calc(100% - 40px);
+			max-width: calc(100% - 4px);
 			background: #F6F6FB;
 			border-radius: 8px;
+
+			&:last-of-type {
+				max-width: calc(100% - 40px);
+			}
 		}
+	}
+
+	.select-box-name {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		display: inline-block;
+
+		&--multiple {
+			width: auto;
+			overflow: hidden;
+		}
+		&--pale {
+			color: #b7b7cc;
+		}
+		&--mr {
+			margin-right: 10px;
+		}
+	}
+
+	.select-box-close {
+		line-height: 0;
 
 		&__close {
 			cursor: pointer;
@@ -718,37 +791,64 @@
 		}
 	}
 
-	.select-box-name {
-		width: calc(100% - 70px);
-		white-space: nowrap;
+	.select-title {
+		display: block;
+		font-size: 14px;
+		background-color: #fff;
+		color: #b7b7cc;
+		padding: 0 10px;
+		position: absolute;
+		top: -11px;
+		left: 15px;
 		overflow: hidden;
 		text-overflow: ellipsis;
-		display: inline-block;
+		white-space: nowrap;
+	}
+	
+	.select-placeholder {
+		padding: 0 2px 0 6px;
+		color: #b7b7cc;
+		font-weight: 300;
 
-		&--multiple {
-			width: auto
-		}
-
-		&--pale {
-			color: #b7b7cc;
-		}
-
-		&--mr {
-			margin-right: 10px;
+		&--empty {
+			width: calc(100% - 40px);
+			display: block;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
 		}
 	}
 
-	.select-title {
-		padding: 0 2px 0 6px;
-		display: flex;
-		align-items: center;
-		color: #b7b7cc;
-		font-weight: 300;
+	.v-searchable {
+		min-width: 30px;
+		max-width: calc(100% - 30px);
+		width: 40px;
+		height: 30px;
+		flex: 1 1 auto;
+		font-size: 14px;
+		font-weight: normal;
+		padding: 0 13.5px;
+		border: none;
+		outline: none;
+
+		&::placeholder {
+			font-size: 14px;
+			font-weight: normal;
+			color: #b7b7cc;
+		}
+		&--single-clearable {
+			max-width: calc(100% - 70px);
+		}
+		&--default {
+			max-width: calc(100% - 30px);
+		}
 	}
 
 	.dropdown-list {
+		// font-family: 'Inter', sans-serif;
 		width: 100%;
-		font-family: 'Inter', sans-serif;
+		max-height: 285px;
+    	overflow: auto;
 		border: 2px solid #eeedf7;
 		border-top: none;
 		padding-top: 3px;
@@ -762,7 +862,7 @@
 		&--active {
 			border: 2px solid #dfdfdf;
 			border-top: none;
-			z-index: 1010;
+			z-index: 1110;
 		}
 	}
 
@@ -805,6 +905,7 @@
 
 	.multiple-add {
 		cursor: pointer;
+		outline: none;
 
 		&--disabled {
 			filter: invert(.1)
@@ -826,6 +927,22 @@
 		}
 	}
 
+	.placeholder-enter-active {
+		animation: open-placeholder .2s;
+
+		@keyframes open-placeholder {
+			0% { transform: perspective(100px) rotateX(-90deg) }
+			100% { transform: perspective(100px) rotateX(0); }
+		}
+	}
+	.placeholder-leave-active {
+		animation: close-placeholder .2s;
+
+		@keyframes close-placeholder {
+			100% { transform: perspective(100px) rotateX(-90deg); }
+		}
+	}
+
 	.dropdown-list-enter-active {
 		animation: open-list .4s;
 
@@ -834,11 +951,9 @@
 				opacity: 0;
 				transform: translateX(50px);
 			}
-
 			20% {
 				box-shadow: 0 3px 7px #fff;
 			}
-
 			100% {
 				opacity: 1;
 			}
@@ -852,11 +967,10 @@
 			40% {
 				box-shadow: 0 3px 7px #fff;
 			}
-
 			100% {
-				transform: scale(0);
 				opacity: 0;
-				z-index: 999;
+				transform: translateY(100px);
+				z-index: 1111;
 			}
 		}
 	}
