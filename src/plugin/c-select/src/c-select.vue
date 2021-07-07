@@ -7,9 +7,10 @@
 		<!-- Select -->
 		<div class="v-selected select-container__v-selected"
 			:class="[
-				{ 'v-selected--only': !multiple || (!selected.length && !cloneOptions.length)},
+				{ 'v-selected--only': !disabled && !multiple || (!selected.length && !cloneOptions.length)},
 				{ 'v-selected--raise': multiple && selected.length && raisePlaceholder },
 				{ 'v-selected--active': isOpenSelect },
+				{ 'v-selected--disabled': disabled },
 				...getSelectClass
 			]"
 			:ref="uniqueselected"
@@ -17,7 +18,7 @@
 			@blur="globalBlur($event, 'select')"
 			@keydown.enter="enterToFocus"
 			@keydown.up.down.prevent="arrowToFocus($event)"
-			@click="!multiple ? toggleSelect() : false"
+			@click="!multiple && !disabled ? toggleSelect() : false"
 		>
 
 			<transition name="placeholder">
@@ -43,6 +44,7 @@
 				<div class="select-name v-selected__select-name"
 					:class="[
 						{ 'select-name--multiple': multiple },
+						{ 'select-name--disabled-multiple': multiple && disabled },
 						{ 'select-name--single-arrow': !multiple && !clearable },
 						{ 'select-name--single-clearable': !multiple && clearable },
 					]"
@@ -67,7 +69,11 @@
 					<div class="select-box-close select-name__select-box-close">
 						<i-close v-if="multiple && (!clearable && selected.length !== 1 || clearable)"
 							class="select-box-close__close"
-							@click.native="drop(i, select)"
+							:class="[
+								{ 'select-box-close__close--hover': !disabled },
+								{ 'select-box-close__close--disabled': disabled }
+							]"
+							@click.native="!disabled ? drop(i, select) : false"
 						/>
 					</div>
 				</div>
@@ -79,9 +85,10 @@
 					class="multiple-add"
 					:ref="uniqueadd"
 					:class="[
-						{ 'multiple-add--hover': cloneOptions.length },
+						{ 'multiple-add--hover': !disabled && cloneOptions.length },
+						{ 'multiple-add--disabled': disabled },
 					]"
-					@click.native="toggleSelect"
+					@click.native="!disabled ? toggleSelect() : false"
 					:tabindex="!isOpenSelect ? null : tabindex"
 				/>
 			</template>
@@ -89,16 +96,23 @@
 			<!-- Single icons - delete/arrow -->
 			<template v-else>
 				<div class="v-selected__wrap-icons"
-					:class="{ 'v-selected__wrap-icons--has-item': selected.length && clearable }"
+					:class="[
+						{ 'v-selected__wrap-icons--has-item': selected.length && clearable },
+						{ 'v-selected__wrap-icons--disabled': disabled }
+					]"
 				>
 					<template v-if="clearable">
 						<i-close v-if="selected.length"
-							@click.native.stop="drop(0)"
+							:class="{ 'single-close--hover': !disabled }"
+							@click.native.stop="!disabled ? drop(0) : false"
 						/>
 						<i-hor-line v-if="selected.length" />
 					</template>
 					<i-arrow-down class="rotate-arraw-down"
-						:class="{ 'rotate-arraw-down--active': isOpenSelect }"
+						:class="[
+							{ 'rotate-arraw-down--active': isOpenSelect },
+							{ 'rotate-arraw-down--hover': !disabled },
+						]"
 					/>
 				</div>
 			</template>
@@ -215,6 +229,10 @@
 				type: Boolean,
 				default: false,
 			},
+			disabled: {
+				type: Boolean,
+				default: false
+			},
 			width: {
 				type: [String, Number],
 				default: 'auto'
@@ -318,6 +336,7 @@
 
 				if (this.filterOptions.length && !this.isOpenSelect) {
 					this.select(this.filterOptions[this.currOptionArrow - 1])
+					this.currOptionArrow = 1
 				}
 			},
 			arrowToFocus(e) {
@@ -359,7 +378,9 @@
 				if (relatedTarget && relatedTarget.classList.contains('dropdown-list')) return
 				if (type === 'select') {
 					if (!this.searchable) {
-						if (this.multiple && relatedTarget === this.$refs[this.uniqueadd].$el) return
+						if (this.multiple
+							&& this.$refs[this.uniqueadd]
+							&& relatedTarget === this.$refs[this.uniqueadd].$el) return
 
 						this.isOpenSelect = false
 					}
@@ -373,7 +394,8 @@
 					}
 					
 					if (this.multiple) {
-						if (relatedTarget === this.$refs[this.uniqueadd].$el) return
+						if (this.$refs[this.uniqueadd]
+							&& relatedTarget === this.$refs[this.uniqueadd].$el) return
 					} else {
 						if (relatedTarget === this.$refs[this.uniqueselected]) return
 					}
@@ -427,6 +449,13 @@
 			updateOptions(selected) {
 				const indices = this.getCurrIndices(selected)
 				this.cloneOptions= this.modifyOptions.filter((c, i) => !indices.includes(i))
+			},
+			updateValue() {
+				const indices = this.getCurrIndices(this.defineValue)
+
+				this.selected = indices.length
+					? this.modifyOptions.filter((c, i) => indices.includes(i))
+					: this.defineValue
 			},
 			formatToReduce(data, numberToString = true) {
 				if (this.arrayElementType(data) === 'object') {
@@ -508,9 +537,7 @@
 			selected: {
 				deep: true,
 				handler(selected) {
-					if (this.options.length) {
-						this.updateOptions(selected)
-					}
+					this.updateOptions(selected)
 
 					if (this.active && this.isPermissionToUpdate) {
 						const outerResult = this.formatToReduce(selected, false)
@@ -532,19 +559,8 @@
 			options: {
 				deep: true,
 				handler(options) {
-					if (options.length) {
-						this.updateOptions(this.selected)
-					}
-
-					if (!this.defineValue.length) {
-						this.selected = []
-					} else {
-						const indices = this.getCurrIndices(this.defineValue)
-
-						if (!indices.length) {
-							this.selected = this.defineValue
-						}
-					}
+					this.updateValue()
+					this.updateOptions(this.selected)
 				}
 			},
 			isOpenSelect(opened) {
@@ -577,6 +593,7 @@
 						this.$refs[this.uniqueselected].focus()
 					}
 				} else {
+					this.$refs[this.uniqueselected].focus()
 					this.$emit('options:closed')
 				}
 			},
@@ -585,11 +602,11 @@
 			}
 		},
 		created() {
-			const indices = this.getCurrIndices(this.defineValue)
+			if (this.disabled) {
+				this.tabindex = null
+			}
 
-			this.selected = indices.length
-				? this.modifyOptions.filter((c, i) => indices.includes(i))
-				: this.defineValue
+			this.updateValue()
 
 			if ('label' in this.$options.propsData && this.arrayElementType(this.defineValue) === 'object') {
 				this.defineValue.forEach(curr => {
@@ -651,8 +668,7 @@
 		margin: 0;
 		padding: 0;
 		box-sizing: border-box;
-		font-family: 'Inter', sans-serif;
-		
+		// font-family: 'Inter', sans-serif;
 	}
 
 	.select-container {
@@ -694,7 +710,7 @@
 		}
 
 		&:focus-visible {
-			border: 2px solid #dfdfdf;
+			border: 2px solid #c4c4c4;
 		}
 
 		&--raise {
@@ -705,10 +721,16 @@
 		}
 
 		&--active {
-			border: 2px solid #dfdfdf;
+			border: 2px solid #c4c4c4;
 			border-bottom: 2px solid transparent;
 			border-bottom-left-radius: 0;
 			border-bottom-right-radius: 0;
+		}
+
+		&--disabled {
+			border: 2px solid #eeedf7;
+			background: #fbfbff;
+			cursor: no-drop;
 		}
 
 		&__select-name {
@@ -729,6 +751,9 @@
 				width: 60px;
 				height: 80%;
 				background: #fff;
+			}
+			&--disabled {
+				opacity: .5;
 			}
 		}
 	}
@@ -759,6 +784,9 @@
 				max-width: calc(100% - 40px);
 			}
 		}
+		&--disabled-multiple {
+			background: #fbfbfb;
+		}
 	}
 
 	.select-box-name {
@@ -783,10 +811,16 @@
 		line-height: 0;
 
 		&__close {
-			cursor: pointer;
 
-			&:hover {
-				filter: invert(.5)
+			&--hover {
+				cursor: pointer;
+
+				&:hover {
+					filter: invert(.5)
+				}
+			}
+			&--disabled {
+				opacity: .5;
 			}
 		}
 	}
@@ -860,7 +894,7 @@
 		box-shadow: 0 8px 7px -7px #828282;
 
 		&--active {
-			border: 2px solid #dfdfdf;
+			border: 2px solid #c4c4c4;
 			border-top: none;
 			z-index: 1110;
 		}
@@ -884,7 +918,8 @@
 		text-align: left;
 
 		&--arrow {
-			background-color: #dfdfdf;
+			background: linear-gradient(#fff, #c4c4c4);
+			font-weight: 600;
 		}
 
 		&__name {
@@ -904,14 +939,15 @@
 	}
 
 	.multiple-add {
-		cursor: pointer;
 		outline: none;
 
 		&--disabled {
-			filter: invert(.1)
+			opacity: .5;
 		}
 
 		&--hover {
+			cursor: pointer;
+
 			&:hover {
 				filter: invert(.03);
 			}
@@ -924,6 +960,19 @@
 
 		&--active {
 			transform: rotate(-180deg);
+		}
+		&--hover {
+			&:hover {
+				filter: invert(.5)
+			}
+		}
+	}
+
+	.single-close {
+		&--hover {
+			&:hover {
+				filter: invert(.5)
+			}
 		}
 	}
 
