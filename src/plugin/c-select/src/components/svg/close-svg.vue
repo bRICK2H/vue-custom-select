@@ -8,7 +8,7 @@
   >
     <path
       d="M10.8 1.2002L1.20001 10.8002M1.20001 1.2002L10.8 10.8002"
-      stroke="#B7B7CC"
+      stroke="#1F1F33"
       stroke-width="2"
       stroke-linecap="round"
       stroke-linejoin="round"

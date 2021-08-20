@@ -16,6 +16,8 @@
 | disabled 				| `Boolean` 			| **false** 	| *Заблокировать выпадающий список options* |
 | bahavior 				| `Boolean` 			| **false** 	| *Определяет поведение options*, если истина то список будет виден из под любого родителя снаружи |
 | width 					| `[String, Number]` | **auto** 		| *Ширина select* |
+| height 				| `[String, Number]` | **48** 		| *Высота select* |
+| optionPlace 			| `String` 				| **'center'** | *Положение текста в выпадающем списке* |
 | classes 				| `Array` 				| **[ ]** 		| *Массив классов для select и options* добавление классов требует префикса вида - ['select-className', 'option-className']|
 
 ### $events:
