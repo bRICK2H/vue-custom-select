@@ -11,7 +11,8 @@
 				{ 'v-selected--raise': multiple && selected.length && raisePlaceholder },
 				{ 'v-selected--active': isOpenSelect },
 				{ 'v-selected--disabled': disabled },
-				...getSelectClass
+				...getSelectClass,
+				elClass
 			]"
 			:ref="uniqueselected"
 			:tabindex="tabindex"
@@ -20,7 +21,17 @@
 			@keydown.up.down.prevent="arrowToFocus($event)"
 			@click="!multiple && !disabled ? toggleSelect() : false"
 		>
+			
+			<!-- Dublicate warning -->
+			<transition name="dublicate">
+				<span v-if="isDublicate && dublicateError"
+					class="dublicate v-selected__dublicate"
+				>
+					Параметр уже выбран!
+				</span>
+			</transition>
 
+			<!-- Placeholder -->
 			<transition name="placeholder">
 				<span v-if="raisePlaceholder && selected.length || searchable && isOpenSelect && !selected.length"
 					class="select-title v-selected__select-title"
@@ -37,7 +48,7 @@
 					:class="{ 'select-placeholder--empty': !selected.length }"
 					key="title"
 				>
-					* {{ placeholder }}
+					{{ placeholder }}
 				</p>
 			</template>
 			<template v-else-if="multiple || !multiple && !searchable || !multiple && searchable && !isOpenSelect">
@@ -139,7 +150,7 @@
 				v-model="inputSearch"
 			>
 		</div>
-
+		
 		<!-- Optiions -->
 		<transition name="dropdown-list">
 			<div v-show="isOpenSelect"
@@ -148,8 +159,10 @@
 					:style="[setStylesToDropDownList]"
 					:ref="uniqueddl"
 					:tabindex="tabindex">
+					
 				<ul class="option-list"
 					:ref="uniquedol"
+					:style="{ paddingRight: isOptionScroll ? '12px' : '8px' }"
 				>
 					<li v-if="!filterOptions.length"
 						class="option-empty"
@@ -161,29 +174,35 @@
 							Список элементов пуст
 						</template>
 					</li>
-
+					
 					<template v-else>
 						<li class="option"
 							v-for="(option, i) of filterOptions"
 							:key="i"
 							@mouseenter="hoverOption(i + 1)"
-							@click="select(option)"
+							@click="select(option, i + 1)"
 							:title="JSON.stringify(innerReduce(option))">
 
-							<div class="option-name option__option-name"
-								:class="{ 'option-name--arrow': currOptionArrow === i + 1 }"
-								:style="{ textAlign: optionPlace }"
+							<p class="option-name option__option-name"
+								:style="[
+									{ textAlign: optionPlace },
+								]"
+								:class="[
+									{ 'option-name--arrow-selected': !spliceable && selectOptionArrow.includes(i + 1) },
+									{ 'option-name--arrow-hover': currOptionArrow === i + 1 },
+								]"
 							>
+
 								<slot name="option" v-bind="option">
 									{{ innerReduce(option) }}
 								</slot>
 
-								<span v-if="currOptionArrow === i + 1"
+								<span v-if="!spliceable && selectOptionArrow.includes(i + 1)"
 									class="option-arrow-select option-name__option-arrow-select"
 								>
 									<i-arrow-select />
 								</span>
-							</div>
+							</p>
 						</li>
 					</template>
 				</ul>
@@ -212,9 +231,13 @@
 			value: null,
 			placeholder: {
 				type: String,
-				default: 'Добавить'
+				default: ''
 			},
 			raisePlaceholder: {
+				type: Boolean,
+				default: false
+			},
+			dublicateError: {
 				type: Boolean,
 				default: false
 			},
@@ -234,9 +257,17 @@
 				type: Boolean,
 				default: false
 			},
+			maxable: {
+				type: Number,
+				defaut: null
+			},
 			clearable: {
 				type: Boolean,
 				default: true
+			},
+			spliceable: {
+				type: Boolean,
+				default: false
 			},
 			searchable: {
 				type: Boolean,
@@ -245,6 +276,10 @@
 			saveable: {
 				type: Boolean,
 				default: false,
+			},
+			outsideOpen: {
+				type: Boolean,
+				default: false
 			},
 			disabled: {
 				type: Boolean,
@@ -258,6 +293,10 @@
 				type: [String, Number],
 				default: 48
 			},
+			optionHeight: {
+				type: [String, Number],
+				default: 312
+			},
 			optionPlace: {
 				type: String,
 				default: 'center'
@@ -269,6 +308,14 @@
 			classes: {
 				type: Array,
 				default: () => ([])
+			},
+			elClass: {
+				type: [String, Array],
+				default: ''
+			},
+			positionOptions: {
+				type: String,
+				default: ''
 			}
 		},
 		data: () => ({
@@ -281,12 +328,16 @@
 			tabindex: 0,
 			inputSearch: '',
 			currOptionArrow: 1,
+			selectOptionArrow: [],
 			selected: [],
 			cloneOptions: [],
 			currSelectCoords: {},
 			active: true,
 			isOpenSelect: false,
 			isPermissionToUpdate: false,
+			isDublicate: false,
+			isOptionScroll: false,
+			ignoredValue: [null, undefined, 0, {}, '']
 		}),
 		computed: {
 			getSelectClass() {
@@ -296,13 +347,21 @@
 				return this.classes.filter(curr => /^option-/.test(curr))
 			},
 			setStylesToDropDownList() {
-				const { top, left, width, height } = this.currSelectCoords
-
+				const { top, left, width, height, ddlHeight } = this.currSelectCoords
+				let isPositionOptions = top + ddlHeight < document.body.offsetHeight
+				if (this.positionOptions) {
+					isPositionOptions = this.positionOptions === 'bottom' ? true : false
+				}
 				return {
 					width: `${width}px`,
+					maxHeight: `${this.optionHeight}px`,
 					top: this.behavior
-						? `${top + height + 4}px`
-						: `${height + 4}px`,
+						? isPositionOptions
+							? `${top + height + 4}px`
+							: `${top - (ddlHeight + 4)}px`
+						: isPositionOptions
+							? `${height + 4}px`
+							: `${-(ddlHeight + 4)}px`,
 					left: this.behavior
 						? `${left}px`
 						: 0
@@ -311,11 +370,16 @@
 			setStyleToSelect() {
 				return {
 					width: this.width === 'auto' ? '100%' : `${+this.width}px`,
-					height: `${+this.height}px`,
+					minHeight: `${+this.height}px`,
 				}
 			},
 			defineValue() {
-				return this.value === null || this.value === undefined
+				if (this.value === 0 &&( !this.isChosenExist([0]) || !this.options.length)) {
+					const zeroIndex = this.ignoredValue.findIndex(curr => curr === 0)
+					this.ignoredValue.splice(zeroIndex, 1)
+				}
+
+				return this.ignoredValue.map(JSON.stringify).includes(JSON.stringify(this.value))
 					? []
 					: Array.isArray(this.value)
 						? this.value
@@ -336,25 +400,69 @@
 						.includes(this.inputSearch.toLowerCase())
 				})
 			},
+			lastSelectedIndex() {
+				return this.modifyOptions.findIndex(curr => {
+					return JSON.stringify(curr) === JSON.stringify(this.selected[this.selected.length - 1])
+				})
+			}
 		},
 		methods: {
-			select(option) {
-				this.$emit('option:before-create', option)
-				this.multiple
-					? this.selected.push(option)
-					: this.selected.splice(0, 1, option)
+			select(option, index) {
+				if (typeof this.maxable === 'number' && this.selected.length + 1 > this.maxable && this.multiple) {
+					this.isOpenSelect = false
+					return
+				}
 				
+				this.$emit('option:before-create', option)
+				this.currOptionArrow = this.spliceable ? 1 : index
+				const existOption = this.selected.some(curr => JSON.stringify(curr) === JSON.stringify(option))
+
+				if (this.multiple) {
+					if (this.spliceable) {
+						this.selected.push(option)
+					} else {
+						if (!existOption) {
+							this.selected.push(option)
+							this.selectOptionArrow.push(index)
+						} else {
+							this.isOpenSelect = false
+							this.isDublicate = true
+						}
+					}
+				} else {
+					if (this.spliceable) {
+						this.selected.splice(0, 1, option)
+						this.selectOptionArrow.splice(0, 1, 1)
+					} else {
+						if (!existOption) {
+							this.selected.splice(0, 1, option)
+							this.selectOptionArrow.splice(0, 1, index)
+						} else {
+							this.isOpenSelect = false
+							this.isDublicate = true
+						}
+					}
+				}
+
 				this.isPermissionToUpdate = true
 				this.$emit('option:created', option)
 			},
 			drop(i, option) {
 				this.setActiveSelect()
-
 				this.$emit('option:before-delete', option)
-				this.multiple
-					? this.selected.splice(i, 1)
-					: this.selected = []
 
+				if (this.multiple) {
+					this.selected.splice(i, 1)
+					this.selectOptionArrow.splice(i, 1)
+				} else {
+					this.selected = []
+					this.selectOptionArrow = []
+				}
+
+				this.currOptionArrow = this.spliceable
+					? 1
+					: this.lastSelectedIndex !== -1
+						? this.lastSelectedIndex + 1 : 1
 				this.isPermissionToUpdate = true
 				this.$emit('option:deleted', option)
 			},
@@ -362,8 +470,7 @@
 				this.toggleSelect()
 
 				if (this.filterOptions.length && !this.isOpenSelect) {
-					this.select(this.filterOptions[this.currOptionArrow - 1])
-					this.currOptionArrow = 1
+					this.select(this.filterOptions[this.currOptionArrow - 1], this.currOptionArrow)
 				}
 			},
 			arrowToFocus(e) {
@@ -379,25 +486,27 @@
 				}
 
 				this.$nextTick(() => {
-					const ddl = this.$refs[this.uniquedol]
+					const dol = this.$refs[this.uniquedol]
 					
 					if (key === 'ArrowUp') {
 						if (this.currOptionArrow === this.filterOptions.length) {
-							ddl.scrollTop = this.filterOptions.length * ddl.firstChild.offsetHeight
-						} else if (this.currOptionArrow * ddl.firstChild.offsetHeight <= ddl.scrollTop) {
-							ddl.scrollTop -= ddl.firstChild.offsetHeight
+							dol.scrollTop = this.filterOptions.length * dol.firstChild.offsetHeight
+						} else if (this.currOptionArrow * dol.firstChild.offsetHeight <= dol.scrollTop) {
+							dol.scrollTop -= dol.firstChild.offsetHeight
 						}
 					} else {
-						if (ddl.firstChild.offsetHeight * this.currOptionArrow > ddl.offsetHeight) {
-							ddl.scrollTop += ddl.firstChild.offsetHeight
+						if (dol.firstChild.offsetHeight * this.currOptionArrow > dol.offsetHeight) {
+							dol.scrollTop += dol.firstChild.offsetHeight
 						} else if (this.currOptionArrow === 1) {
-							ddl.scrollTop = 0
+							dol.scrollTop = 0
 						}
 					}
 				})
 			},
 			hoverOption(index) {
-				this.currOptionArrow = index
+				if (this.isOpenSelect) {
+					this.currOptionArrow = index
+				}
 			},
 			globalBlur(e, type) {
 				const { relatedTarget } = e
@@ -449,14 +558,16 @@
 				this.isOpenSelect = !this.isOpenSelect
 			},
 			setCurrSelectCoords() {
-				const { top, left, width } = this.$refs[this.uniqueselected].getBoundingClientRect()
-				const height = this.$refs[this.uniqueselected].offsetHeight
+				const ddl = this.$refs[this.uniqueddl]
+				const ddlHeight = ddl.offsetHeight
+				const { top, left, width, height } = this.$refs[this.uniqueselected].getBoundingClientRect()
 	
 				this.$nextTick(() => {
 					this.$set(this.currSelectCoords, 'top', top)
 					this.$set(this.currSelectCoords, 'left', left)
 					this.$set(this.currSelectCoords, 'width', width)
 					this.$set(this.currSelectCoords, 'height', height)
+					this.$set(this.currSelectCoords, 'ddlHeight', ddlHeight)
 				})
 			},
 			setActiveSelect() {
@@ -474,15 +585,28 @@
 				return typeof el
 			},
 			updateOptions(selected) {
-				const indices = this.getCurrIndices(selected)
-				this.cloneOptions= this.modifyOptions.filter((c, i) => !indices.includes(i))
+				if (!this.spliceable) {
+					this.cloneOptions = this.modifyOptions
+				} else {
+					const indices = this.getCurrIndices(selected)
+					this.cloneOptions = this.modifyOptions.filter((c, i) => !indices.includes(i))
+				}
+
 			},
 			updateValue() {
 				const indices = this.getCurrIndices(this.defineValue)
-
 				this.selected = indices.length
 					? this.modifyOptions.filter((c, i) => indices.includes(i))
 					: this.defineValue
+
+				this.selectOptionArrow = this.spliceable
+					? []
+					: this.selected.length
+						? indices.map(i => i + 1) : []
+				this.currOptionArrow = this.spliceable
+					? 1
+					: this.lastSelectedIndex !== -1
+						? this.lastSelectedIndex + 1 : 1
 			},
 			formatToReduce(data, numberToString = true) {
 				if (this.arrayElementType(data) === 'object') {
@@ -590,12 +714,22 @@
 					this.updateOptions(this.selected)
 				}
 			},
-			isOpenSelect(opened) {
-				this.setActiveSelect()
+			outsideOpen: {
+				immediate: true,
+				async handler(val) {
+					await this.$nextTick()
+					this.isOpenSelect = val
+				}
+			},
+			async isOpenSelect(opened) {
+				await this.$nextTick()
 
-				this.$nextTick(() => {
-					this.setCurrSelectCoords()
-				})
+				this.setActiveSelect()
+				this.setCurrSelectCoords()
+
+				const dol = this.$refs[this.uniquedol]
+				const ddl = this.$refs[this.uniqueddl]
+				dol.scrollTop = dol.firstChild.offsetHeight * (this.currOptionArrow - 1)
 
 				if (this.behavior && opened) {
 					const DOMLocalNames = Object.values(document.body.children).map(curr => curr.localName)
@@ -606,22 +740,29 @@
 					}
 
 					const DropDownContainer = document.querySelector('drop-down-container')
-					this.$refs[this.uniqueddl].setAttribute('unique-name', this.uniqueddl)
-					DropDownContainer.appendChild(this.$refs[this.uniqueddl])
+					ddl.setAttribute('unique-name', this.uniqueddl)
+					DropDownContainer.appendChild(ddl)
 				}
 
 				if (opened) {
+					this.isOptionScroll = this.optionHeight === ddl.offsetHeight
 					this.$emit('options:opened')
+					
 					if (this.searchable) {
-						this.$nextTick(() => {
-							this.$refs[this.uniquesearch].focus()
-						})
+						this.$refs[this.uniquesearch].focus()
 					} else {
 						this.$refs[this.uniqueselected].focus()
 					}
 				} else {
 					this.$refs[this.uniqueselected].focus()
 					this.$emit('options:closed')
+				}
+			},
+			isDublicate(value) {
+				if (value) {
+					setTimeout(() => {
+						this.isDublicate = false
+					}, 800)
 				}
 			},
 			inputSearch(value) {
@@ -720,7 +861,7 @@
 
 	.v-selected {
 		width: 100%;
-		height: 100%;
+		min-height: inherit;
 		background: #fff;
 		border: 2px solid #eeedf7;
 		border-radius: 8px;
@@ -736,7 +877,7 @@
 		}
 		
 		&:focus-visible {
-			border: 2px solid #c4c4c4;
+			border: 2px solid #cfcde5;
 		}
 
 		&--raise {
@@ -747,7 +888,7 @@
 		}
 
 		&--active {
-			border: 2px solid #c4c4c4;
+			border: 2px solid #cfcde5;
 		}
 
 		&--disabled {
@@ -779,11 +920,22 @@
 				opacity: .5;
 			}
 		}
+
+		&__dublicate{
+			position: absolute;
+			top: -20px;
+			left: 50%;
+			transform: translate(-50%, -50%);
+		}
+	}
+
+	.dublicate {
+		color: #ca2e2e;
 	}
 
 	.select-name {
 		width: auto;
-		height: 32px;
+		height: 30px;
 		font-size: 14px;
 		font-weight: 500;
 		color: #1F1F33;
@@ -850,16 +1002,20 @@
 
 	.select-title {
 		display: block;
-		font-size: 14px;
+		font-size: 12px;
+		font-weight: 600;
 		background-color: #fff;
-		color: #b7b7cc;
-		padding: 0 10px;
+		color: #a2a2b9;
+		padding: 2px 10px;
 		position: absolute;
-		top: -11px;
-		left: 15px;
+		top: -13px;
+		left: 50%;
+		transform: rotateX(0) translateX(-50%);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+		border-radius: 4px;
+    	box-shadow: 0 2px 4px #cfcde5;
 	}
 	
 	.select-placeholder {
@@ -905,15 +1061,14 @@
 	.dropdown-list {
 		// font-family: 'Inter', sans-serif;
 		width: 100%;
-		max-height: 312px;
 		padding: 16px 0;
 		color: #000;
 		display: flex;
 		flex-direction: column;
-		box-shadow: 0px 12px 32px -4px rgba(26, 32, 44, .08),
-						0px 0px 12px -3px rgba(26, 32, 44, .04);
+		box-shadow: 0px 12px 32px -4px rgba(26, 32, 44, .2),
+						0px 0px 12px -3px rgba(26, 32, 44, .08);
+		border: 2px solid #cfcde5;
 		border-radius: 8px;
-
 
 		&--active {
 			z-index: 1110;
@@ -923,7 +1078,6 @@
 	.option-list {
 		overflow: auto;
 		margin: 0 8px 0 12px;
-		padding-right: 12px;
 
 		&::-webkit-scrollbar {
 			width: 8px;
@@ -974,9 +1128,31 @@
 		font-weight: 500;
 		color: #1f1f33;
 
-		&--arrow {
-			background-color: #fafaff;
-			border-radius: 8px;
+		&--arrow-selected, &--arrow-hover {
+
+			&:before {
+				content: '';
+				height: calc(100% - 4px);
+				width: 100%;
+				position: absolute;
+				top: 50%;
+				left: 0;
+				transform: translateY(-50%);
+				z-index: -1;
+				border-radius: 8px;
+			}
+		}
+		&--arrow-selected {
+			
+			&::before {
+				background-color: #fafaff;
+			}
+		}
+		&--arrow-hover {
+			
+			&::before {
+				background-color: #eeedf7;
+			}
 		}
 
 		&__option-arrow-select {
@@ -1028,15 +1204,15 @@
 		animation: open-placeholder .2s;
 
 		@keyframes open-placeholder {
-			0% { transform: perspective(100px) rotateX(-90deg) }
-			100% { transform: perspective(100px) rotateX(0); }
+			0% { transform: rotateX(-90deg) translateX(-50%);}
+			100% { transform: rotateX(0) translateX(-50%); }
 		}
 	}
 	.placeholder-leave-active {
 		animation: close-placeholder .2s;
 
 		@keyframes close-placeholder {
-			100% { transform: perspective(100px) rotateX(-90deg); }
+			100% { transform: rotateX(-90deg) translateX(-50%); }
 		}
 	}
 
@@ -1046,7 +1222,7 @@
 		@keyframes open-list {
 			0% {
 				opacity: 0;
-				transform: translateX(50px);
+					transform: translateX(50px);
 			}
 			20% {
 				box-shadow: 0 3px 7px #fff;
@@ -1056,7 +1232,6 @@
 			}
 		}
 	}
-
 	.dropdown-list-leave-active {
 		animation: hide-list .4s;
 
@@ -1066,9 +1241,25 @@
 			}
 			100% {
 				opacity: 0;
-				transform: translateY(100px);
+				transform: translateX(-50px);
 				z-index: 1111;
 			}
+		}
+	}
+
+	.dublicate-enter-active {
+		animation: dublicate-enter .3s;
+
+		@keyframes dublicate-enter {
+			0% { transform: translate(-50%, 200%) scale(0); }
+			100% { transform: translate(-50%, -50%) scale(1); }
+		}
+	}
+	.dublicate-leave-active {
+		animation: dublicate-leave .5s;
+
+		@keyframes dublicate-leave {
+			100% { transform: translate(-50%, -100%) scale(1); opacity: 0; }
 		}
 	}
 </style>
