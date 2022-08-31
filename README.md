@@ -14,41 +14,59 @@
 | maxable 				| `Number` 				| **null** 		| *Максимальное колличество выбираемых опций*, работает только для параметра multiple |
 | clearable 			| `Boolean` 			| **true** 		| *Удалить элемент из select*, если ***true*** удаляются все элементы, если ***false*** и ***!multiple*** элементы не удаляются или если ***false*** и ***multiple*** удаляются все элементы кроме последнего |
 | spliceable 			| `Boolean` 			| **false** 	| *Удалять выбранный параметр из списка options* |
-| searchable 			| `Boolean` 			| **true** 		| *Установить поле для поиска данных* в options |
+| searchable 			| `Boolean` 			| **true** 		| *Показать поле для поиска данных* в options |
+| filterable 			| `Boolean` 			| **true** 		| *Включить локальный фильтр* для options |
 | saveable 				| `Boolean` 			| **false** 	| *Сохранить значение поля при открытии* в select |
-| outsideOpen 			| `false` 				| **Boolean** 	| *Открыть options извне* |
+| loadable 				| `[Boolean, Object]`| **false** 	| *Показать кнопку - "Показать еще" для поиска* Режим boolean - показывает/удаляет кнопку, режим object - есть возможность передать объект с параметрами { show: 'показать/удалить', disabled: разблокировать/заблокировать } |
+| isMobileMode 		| `Boolean` 			| **true** 		| *Включение мобильного режими при ширине <= 768* select растягивается на всю ширину и высоту |
+| outsideOpen 			| `Boolean` 			| **false** 	| *Открыть options извне* |
 | disabled 				| `Boolean` 			| **false** 	| *Заблокировать выпадающий список options* |
 | width 					| `[String, Number]` | **auto** 		| *Ширина select* |
 | height 				| `[String, Number]` | **48** 		| *Максимальная высота select* |
-| heightOptions 		| `[String, Number]` | **312** 		| *Максимальная высота options* |
-| optionPlace 			| `center` 				| **center** 	| *Расположение названий options* |
-| bahavior 				| `Boolean` 			| **false** 	| *Определяет поведение options*, если истина то список будет виден из под любого родителя снаружи |
+| optionPlace 			| `String` 				| **left** 		| *Расположение названий options* |
+| optionHeight 		| `[String, Number]` | **'auto'** 	| *Определить высоту строки option* |
+| optionsHeight 		| `[String, Number]` | **312** 		| *Максимальная высота блока options* |
+| zIndex 				| `[String, Number]` | **312** 		| *Установить z-index* |
+| behavior 				| `Boolean` 			| **false** 	| *Определяет поведение options*, если истина то список будет виден из под любого родителя снаружи |
+| showSelectedArrow 	| `Boolean` 			| **true** 	   | *Показать иконку на выбранном элементе option* |
 | classes 				| `Array` 				| **[ ]** 		| *Массив классов для select и options* добавление классов требует префикса вида - ['select-className', 'option-className']|
 | elClass 				| `[String, Array]`  | **''** 		| *Таргетированный класс для select*, сделан для проброса класса для form-control (вывод ошибок) |
-| positionOptions 				| `String`  | **''** 		| *Флаг для определения позиции options*. По умолчанию рассчитывается автоматически. (['top', 'bottom']) |
+| positionOptions 	| `String` 				| **''** 		| *Флаг для определения позиции options*. По умолчанию рассчитывается автоматически. (['top', 'bottom']) |
 
 ### $events:
 ```js
 	// Событие перед созданием нового значения, возвращется создаваемое значение
 	this.$emit('option:before-create', creatable-option)
+
 	// Событие после создания нового значения, возвращается новое созданное значение
 	this.$emit('option:created', created-option)
+
 	// Событие перед удалением значения, возвращается удаляемое значение
 	this.$emit('option:before-delete', deletable-option)
+
 	// Событие после удаления значения, возвращается удаленное значение
 	this.$emit('option:deleted', deleted-option)
+
 	// Событие фокуса, возвращается установленное значение в searchable, при saveable = true
 	this.$emit('search:focus', focus-option)
+
 	// Событие поиска, возвщается текущее набранное значение
 	this.$emit('search', search-option)
-	// Событие потери фокуса, возвращает оставшееся значение в searchable, при saveable = tru
+
+	// Событие потери фокуса, возвращает значение input и тип выхода select (закрытие и выбор элемента) | blur (закрытие)
 	this.$emit('search:blur', blur-option)
+
 	// Событие выбора, возвращает выбранные значения
 	this.$emit('input', selectable-option)
+
 	// Событие открытия списка options
 	this.$emit('options:opened')
+
 	// Событие закрытия списка options
 	this.$emit('options:closed')
+
+	// Событие нажатие по кнопке - "Показать еще"
+	this.$emit('option:load')
 ```
 
 ### $slots:
